@@ -1,10 +1,10 @@
 {
-  "name": "@a2a-js/sdk",
+  "name": "@drew-foxall/a2a-js-sdk",
   "version": "0.3.5",
-  "description": "Server & Client SDK for Agent2Agent protocol",
+  "description": "Server & Client SDK for Agent2Agent protocol with Express and Hono support",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/a2aproject/a2a-js.git"
+    "url": "git+https://github.com/drew-foxall/a2a-js-sdk.git"
   },
   "engines": {
     "node": ">=18"
@@ -28,6 +28,11 @@
       "import": "./dist/server/express/index.js",
       "require": "./dist/server/express/index.cjs"
     },
+    "./server/hono": {
+      "types": "./dist/server/hono/index.d.ts",
+      "import": "./dist/server/hono/index.js",
+      "require": "./dist/server/hono/index.cjs"
+    },
     "./client": {
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js",
@@ -42,6 +47,7 @@
   "devDependencies": {
     "@genkit-ai/googleai": "^1.8.0",
     "@genkit-ai/vertexai": "^1.8.0",
+    "@hono/node-server": "1.19.6",
     "@types/chai": "^5.2.2",
     "@types/express": "^5.0.3",
     "@types/mocha": "^10.0.10",
@@ -53,6 +59,7 @@
     "express": "^5.1.0",
     "genkit": "^1.8.0",
     "gts": "^6.0.2",
+    "hono": "4.10.6",
     "json-schema-to-typescript": "^15.0.4",
     "mocha": "^11.6.0",
     "sinon": "^20.0.0",
@@ -70,7 +77,8 @@
     "generate": "curl https://raw.githubusercontent.com/google-a2a/A2A/refs/heads/main/specification/json/a2a.json > spec.json && node scripts/generateTypes.js && rm spec.json",
     "a2a:cli": "tsx src/samples/cli.ts",
     "agents:movie-agent": "tsx src/samples/agents/movie-agent/index.ts",
-    "agents:sample-agent": "tsx src/samples/agents/sample-agent/index.ts"
+    "agents:sample-agent": "tsx src/samples/agents/sample-agent/index.ts",
+    "agents:hono-sample-agent": "tsx src/samples/agents/hono-sample-agent/index.ts"
   },
   "dependencies": {
     "uuid": "^11.1.0"
@@ -85,5 +93,22 @@
   },
   "mocha": {
     "require": "tsx"
-  }
+  },
+  "keywords": [
+    "a2a",
+    "agent2agent",
+    "ai-agents",
+    "hono",
+    "express",
+    "sse",
+    "streaming",
+    "server-sent-events",
+    "ai",
+    "agents"
+  ],
+  "author": "Drew Foxall",
+  "bugs": {
+    "url": "https://github.com/drew-foxall/a2a-js-sdk/issues"
+  },
+  "homepage": "https://github.com/drew-foxall/a2a-js-sdk#readme"
 }

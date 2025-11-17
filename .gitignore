@@ -152,10 +152,34 @@ terraform.tfstate**
 
 tmp*
 
-# Node
+# Node.js dependencies and package manager files
 **/node_modules
-npm-debug.log
+node_modules/
+.npm
+
+# npm
+npm-debug.log*
+
+# Yarn
 yarn-error.log
+yarn-debug.log*
+.yarn/
+.yarn-integrity
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# pnpm
+pnpm-debug.log*
+.pnpm-store
+.pnpm-store/
+
+# Bun
+bun.lockb
 
 # IDEs and editors
 .idea/
@@ -179,3 +203,9 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Internal documentation (not for public repo)
+DEPLOYMENT_STEPS.md
+PUBLISH_GUIDE.md
+setup-publish.sh
+package.json.backup

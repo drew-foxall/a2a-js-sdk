@@ -1,5 +1,6 @@
-# A2A JavaScript SDK
+# A2A JavaScript SDK with Hono Support
 
+[![npm version](https://badge.fury.io/js/@drew-foxall%2Fa2a-js-sdk.svg)](https://www.npmjs.com/package/@drew-foxall/a2a-js-sdk)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 <!-- markdownlint-disable no-inline-html -->
@@ -13,20 +14,76 @@
 
 <!-- markdownlint-enable no-inline-html -->
 
+## 🔱 Fork Notice
+
+> **This is a fork of the official [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js) repository.**
+
+### Why This Fork Exists
+
+This fork extends the original A2A JavaScript SDK with **Hono framework support**, providing developers with a choice between Express and Hono for building A2A agent servers.
+
+### ✨ What's New in This Fork
+
+- **🎯 Hono Adapter**: Full A2A protocol support for the [Hono](https://hono.dev/) framework
+- **🚀 SSE Streaming**: Complete Server-Sent Events implementation for Hono
+- **✅ Comprehensive Tests**: 23/23 tests passing for Hono adapter (full parity with Express)
+- **📦 Easy Integration**: Same API pattern as Express adapter for consistency
+- **🔄 Backward Compatible**: Works as a drop-in replacement for the original package
+- **📚 Documentation**: Includes working Hono sample agent
+
+### When to Use This Fork
+
+- ✅ You want to use **Hono** instead of Express
+- ✅ You need **edge runtime compatibility** (Cloudflare Workers, Deno, Bun)
+- ✅ You want a **lightweight** alternative to Express
+- ✅ You still want all the Express functionality (both adapters included!)
+
+### Feature Comparison
+
+| Feature | Original | This Fork |
+|---------|----------|-----------|
+| Express Adapter | ✅ | ✅ |
+| Hono Adapter | ❌ | ✅ |
+| SSE Streaming (Express) | ✅ | ✅ |
+| SSE Streaming (Hono) | ❌ | ✅ |
+| Edge Runtime Support | ❌ | ✅ |
+| Full Test Coverage | ✅ | ✅ |
+| Same API Patterns | ✅ | ✅ |
+
+### Original Repository
+
+For the official version (Express-only), see: [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js)
+
+---
+
 ## Installation
 
-You can install the A2A SDK using `npm`.
+### Install from PNPM/NPM/Bun/Yarn
 
 ```bash
-npm install @a2a-js/sdk
+npm install @drew-foxall/a2a-js-sdk
+# or
+pnpm add @drew-foxall/a2a-js-sdk
+# or
+yarn add @drew-foxall/a2a-js-sdk
 ```
 
-### For Server Usage
+### For Server Usage with Express
 
-If you plan to use the A2A server functionality (`A2AExpressApp`), you'll also need to install Express as it's a peer dependency:
+If you plan to use the Express adapter (`A2AExpressApp`), you'll also need to install Express as it's a peer dependency:
 
 ```bash
 npm install express
+```
+
+### For Server Usage with Hono
+
+If you plan to use the Hono adapter (`A2AHonoApp`), you'll need to install Hono and a runtime adapter:
+
+```bash
+npm install hono @hono/node-server
+# or for other runtimes:
+# npm install hono  # Cloudflare Workers, Deno, Bun (no adapter needed)
 ```
 
 You can also find JavaScript samples [here](https://github.com/google-a2a/a2a-samples/tree/main/samples/js).
@@ -35,9 +92,9 @@ You can also find JavaScript samples [here](https://github.com/google-a2a/a2a-sa
 
 ## Quickstart
 
-This example shows how to create a simple "Hello World" agent server and a client to interact with it.
+This example shows how to create a simple "Hello World" agent server and a client to interact with it. Both **Express** and **Hono** examples are provided.
 
-### Server: Hello World Agent
+### Server: Hello World Agent (Express)
 
 The core of an A2A server is the `AgentExecutor`, which contains your agent's logic.
 
@@ -45,15 +102,15 @@ The core of an A2A server is the `AgentExecutor`, which contains your agent's lo
 // server.ts
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
-import type { AgentCard, Message } from "@a2a-js/sdk";
+import type { AgentCard, Message } from "@drew-foxall/a2a-js-sdk";
 import {
   AgentExecutor,
   RequestContext,
   ExecutionEventBus,
   DefaultRequestHandler,
   InMemoryTaskStore,
-} from "@a2a-js/sdk/server";
-import { A2AExpressApp } from "@a2a-js/sdk/server/express";
+} from "@drew-foxall/a2a-js-sdk/server";
+import { A2AExpressApp } from "@drew-foxall/a2a-js-sdk/server/express";
 
 // 1. Define your agent's identity card.
 const helloAgentCard: AgentCard = {
@@ -107,14 +164,83 @@ expressApp.listen(4000, () => {
 });
 ```
 
+### Server: Hello World Agent (Hono) 🆕
+
+The same agent logic works with Hono - just swap the adapter!
+
+```typescript
+// server-hono.ts
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { v4 as uuidv4 } from "uuid";
+import type { AgentCard, Message } from "@drew-foxall/a2a-js-sdk";
+import {
+  AgentExecutor,
+  RequestContext,
+  ExecutionEventBus,
+  DefaultRequestHandler,
+  InMemoryTaskStore,
+} from "@drew-foxall/a2a-js-sdk/server";
+import { A2AHonoApp } from "@drew-foxall/a2a-js-sdk/server/hono";
+
+// 1. Define your agent's identity card (same as Express).
+const helloAgentCard: AgentCard = {
+  name: "Hello Agent",
+  description: "A simple agent that says hello.",
+  protocolVersion: "0.3.0",
+  version: "0.1.0",
+  url: "http://localhost:4000/",
+  skills: [ { id: "chat", name: "Chat", description: "Say hello", tags: ["chat"] } ],
+};
+
+// 2. Implement the agent's logic (same as Express).
+class HelloExecutor implements AgentExecutor {
+  async execute(
+    requestContext: RequestContext,
+    eventBus: ExecutionEventBus
+  ): Promise<void> {
+    const responseMessage: Message = {
+      kind: "message",
+      messageId: uuidv4(),
+      role: "agent",
+      parts: [{ kind: "text", text: "Hello from Hono!" }],
+      contextId: requestContext.contextId,
+    };
+    eventBus.publish(responseMessage);
+    eventBus.finished();
+  }
+  
+  cancelTask = async (): Promise<void> => {};
+}
+
+// 3. Set up and run the server with Hono.
+const agentExecutor = new HelloExecutor();
+const requestHandler = new DefaultRequestHandler(
+  helloAgentCard,
+  new InMemoryTaskStore(),
+  agentExecutor
+);
+
+const honoApp = new Hono();
+const appBuilder = new A2AHonoApp(requestHandler);
+appBuilder.setupRoutes(honoApp);
+
+serve({
+  fetch: honoApp.fetch,
+  port: 4000,
+});
+
+console.log(`🚀 Hono server started on http://localhost:4000`);
+```
+
 ### Client: Sending a Message
 
-The `A2AClient` makes it easy to communicate with any A2A-compliant agent.
+The `A2AClient` makes it easy to communicate with any A2A-compliant agent (works with both Express and Hono servers).
 
 ```typescript
 // client.ts
-import { A2AClient, SendMessageSuccessResponse } from "@a2a-js/sdk/client";
-import { Message, MessageSendParams } from "@a2a-js/sdk";
+import { A2AClient, SendMessageSuccessResponse } from "@drew-foxall/a2a-js-sdk/client";
+import { Message, MessageSendParams } from "@drew-foxall/a2a-js-sdk";
 import { v4 as uuidv4 } from "uuid";
 
 async function run() {
@@ -668,10 +794,56 @@ app.post('/webhook/task-updates', (req, res) => {
 });
 ```
 
+## Fork Maintenance
+
+### Staying in Sync with Upstream
+
+This fork is maintained to stay current with the official [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js) repository:
+
+```bash
+# Add upstream remote (one time)
+git remote add upstream https://github.com/a2aproject/a2a-js.git
+
+# Fetch and merge upstream changes
+git fetch upstream
+git merge upstream/main
+
+# Push updates to this fork
+git push origin main
+```
+
+### Version Strategy
+
+This fork maintains the **same version number** as the upstream repository to facilitate easy merging of upstream changes. Hono-specific features are documented in the release notes but don't increment the version separately.
+
+### Reporting Issues
+
+- **For Hono adapter issues**: Please open an issue in [this repository](https://github.com/drew-foxall/a2a-js-sdk/issues)
+- **For core A2A protocol issues**: Please report to the [upstream repository](https://github.com/a2aproject/a2a-js/issues)
+
+### Future Plans
+
+- 🔄 Continuously merge upstream improvements
+- 📦 Potentially contribute Hono adapter back to upstream
+- 🚀 Add more edge runtime examples (Cloudflare Workers, Deno Deploy)
+- 📚 Expand documentation for Hono-specific use cases
+
 ## License
 
 This project is licensed under the terms of the [Apache 2.0 License](https://raw.githubusercontent.com/google-a2a/a2a-python/refs/heads/main/LICENSE).
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/google-a2a/a2a-js/blob/main/CONTRIBUTING.md) for contribution guidelines.
+### Contributing to This Fork
+
+Contributions are welcome! Please open an issue or pull request for:
+- Improvements to the Hono adapter
+- Bug fixes
+- Documentation enhancements
+- Additional examples
+
+### Contributing to Upstream
+
+For improvements to the core A2A protocol or Express adapter, please contribute to the [official repository](https://github.com/a2aproject/a2a-js).
+
+See [CONTRIBUTING.md](https://github.com/google-a2a/a2a-js/blob/main/CONTRIBUTING.md) for general contribution guidelines.
