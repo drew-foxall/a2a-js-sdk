@@ -1,5 +1,5 @@
 import 'mocha';
-import { assert } from 'chai';
+import { assert, expect } from 'chai';
 import sinon, { SinonStub } from 'sinon';
 import { Hono } from 'hono';
 
@@ -9,6 +9,7 @@ import { JsonRpcTransportHandler } from '../../src/server/transports/jsonrpc_tra
 import { AgentCard, JSONRPCSuccessResponse, JSONRPCErrorResponse } from '../../src/index.js';
 import { AGENT_CARD_PATH } from '../../src/constants.js';
 import { A2AError } from '../../src/server/error.js';
+import { ServerCallContext } from '../../src/server/context.js';
 
 describe('A2AHonoApp', () => {
     let mockRequestHandler: A2ARequestHandler;
@@ -97,7 +98,7 @@ describe('A2AHonoApp', () => {
         it('should return agent card on custom path when agentCardPath is provided', async () => {
             const customPath = 'custom/agent-card.json';
             const customHonoApp = new Hono();
-            app.setupRoutes(customHonoApp, '', customPath);
+            app.setupRoutes(customHonoApp, '', undefined, customPath);
 
             const res = await customHonoApp.request(`/${customPath}`);
             
@@ -321,6 +322,105 @@ describe('A2AHonoApp', () => {
                 }
             };
             assert.deepEqual(body, expectedErrorResponse);
+        });
+
+        it('should handle extensions headers in request', async () => {
+            const mockResponse: JSONRPCSuccessResponse = {
+                jsonrpc: '2.0',
+                id: 'test-id',
+                result: { message: 'success' }
+            };
+            handleStub.resolves(mockResponse);
+
+            const requestBody = createRpcRequest('test-id');
+            const uriExtensionsValues = 'test-extension-uri, another-extension';
+
+            const res = await honoApp.request('/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-A2A-Extensions': uriExtensionsValues,
+                    'Not-Relevant-Header': 'unused-value'
+                },
+                body: JSON.stringify(requestBody),
+            });
+
+            assert.equal(res.status, 200);
+            assert.isTrue(handleStub.calledOnce);
+            const serverCallContext = handleStub.getCall(0).args[1];
+            expect(serverCallContext).to.be.an.instanceOf(ServerCallContext);
+            expect(serverCallContext.requestedExtensions).to.deep.equal(new Set(['test-extension-uri', 'another-extension']));
+        });
+
+        it('should handle extensions headers in response', async () => {
+            const mockResponse: JSONRPCSuccessResponse = {
+                jsonrpc: '2.0',
+                id: 'test-id',
+                result: { message: 'success' }
+            };
+
+            const requestBody = createRpcRequest('test-id');
+            const uriExtensionsValues = 'activated-extension, non-activated-extension';
+
+            handleStub.callsFake(async (requestBody: any, serverCallContext: ServerCallContext) => {
+                const firstRequestedExtension = serverCallContext.requestedExtensions?.values().next().value;
+                serverCallContext.addActivatedExtension(firstRequestedExtension);                
+                return mockResponse;
+            });
+            
+            const res = await honoApp.request('/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-A2A-Extensions': uriExtensionsValues,
+                    'Not-Relevant-Header': 'unused-value'
+                },
+                body: JSON.stringify(requestBody),
+            });
+
+            assert.equal(res.status, 200);
+            expect(res.headers.get('X-A2A-Extensions')).to.equal('activated-extension');
+        });
+    });
+
+    describe('middleware integration', () => {
+        it('should apply custom middlewares to routes', async () => {
+            const middlewareCalled = sinon.spy();
+            const testMiddleware: any = async (c: any, next: any) => {
+                middlewareCalled();
+                await next();
+            };
+
+            const middlewareApp = new Hono();
+            app.setupRoutes(middlewareApp, '', [testMiddleware]);
+
+            const res = await middlewareApp.request(`/${AGENT_CARD_PATH}`, {
+                method: 'GET',
+            });
+
+            assert.equal(res.status, 200);
+            assert.isTrue(middlewareCalled.calledOnce);
+        });
+
+        it('should handle middleware errors', async () => {
+            const errorMiddleware: any = async (_c: any, _next: any) => {
+                throw new Error('Middleware error');
+            };
+
+            const middlewareApp = new Hono();
+            
+            // Add error handling middleware
+            middlewareApp.onError((err, c) => {
+                return c.json({ error: err.message }, 500);
+            });
+            
+            app.setupRoutes(middlewareApp, '', [errorMiddleware]);
+
+            const res = await middlewareApp.request(`/${AGENT_CARD_PATH}`, {
+                method: 'GET',
+            });
+
+            assert.equal(res.status, 500);
         });
     });
 

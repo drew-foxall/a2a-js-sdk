@@ -26,10 +26,12 @@ This fork extends the original A2A JavaScript SDK with **Hono framework support*
 
 - **🎯 Hono Adapter**: Full A2A protocol support for the [Hono](https://hono.dev/) framework
 - **🚀 SSE Streaming**: Complete Server-Sent Events implementation for Hono
-- **✅ Comprehensive Tests**: 23/23 tests passing for Hono adapter (full parity with Express)
-- **📦 Easy Integration**: Same API pattern as Express adapter for consistency
+- **✅ Comprehensive Tests**: 25 tests passing for Hono adapter
+- **🔌 Middleware Support**: Full middleware injection capabilities for both Express and Hono
+- **🧩 Extension Support**: Complete A2A extensions protocol support for both adapters
+- **📦 Easy Integration**: Identical API pattern as Express adapter for consistency
 - **🔄 Backward Compatible**: Works as a drop-in replacement for the original package
-- **📚 Documentation**: Includes working Hono sample agent
+- **📚 Documentation**: Includes working Hono sample agents with extensions
 
 ### When to Use This Fork
 
@@ -40,15 +42,19 @@ This fork extends the original A2A JavaScript SDK with **Hono framework support*
 
 ### Feature Comparison
 
-| Feature | Original | This Fork |
-|---------|----------|-----------|
-| Express Adapter | ✅ | ✅ |
-| Hono Adapter | ❌ | ✅ |
-| SSE Streaming (Express) | ✅ | ✅ |
-| SSE Streaming (Hono) | ❌ | ✅ |
+| Feature | Express Adapter | Hono Adapter |
+|---------|-----------------|--------------|
+| Core A2A Protocol | ✅ | ✅ |
+| SSE Streaming | ✅ | ✅ |
+| Middleware Injection | ✅ | ✅ |
+| Extension Support (`X-A2A-Extensions`) | ✅ | ✅ |
+| JSON-RPC Error Handling | ✅ | ✅ |
+| Custom Agent Card Paths | ✅ | ✅ |
+| Base URL Configuration | ✅ | ✅ |
+| Test Coverage | 20 tests | 25 tests |
 | Edge Runtime Support | ❌ | ✅ |
-| Full Test Coverage | ✅ | ✅ |
-| Same API Patterns | ✅ | ✅ |
+
+**Result:** 🎯 **Complete Feature Parity** - Choose based on runtime needs, not features!
 
 ### Original Repository
 
@@ -597,6 +603,92 @@ async function streamTask() {
 
 await streamTask();
 ```
+
+-----
+
+## Middleware Support
+
+Both Express and Hono adapters support custom middleware injection, allowing you to add authentication, logging, rate limiting, or any other cross-cutting concerns.
+
+### Express Middleware Example
+
+```typescript
+import express from "express";
+import { A2AExpressApp, DefaultRequestHandler } from "@drew-foxall/a2a-js-sdk/server/express";
+
+// Define custom middleware
+const loggingMiddleware = (req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+};
+
+const authMiddleware = (req, res, next) => {
+  const token = req.headers['authorization'];
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+// Apply middlewares to A2A routes
+const appBuilder = new A2AExpressApp(requestHandler);
+const app = express();
+appBuilder.setupRoutes(
+  app,
+  "/a2a",  // base URL
+  [loggingMiddleware, authMiddleware]  // middlewares array
+);
+
+app.listen(4000);
+```
+
+### Hono Middleware Example
+
+```typescript
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { A2AHonoApp, DefaultRequestHandler } from "@drew-foxall/a2a-js-sdk/server/hono";
+
+// Define custom middleware
+const loggingMiddleware = async (c, next) => {
+  console.log(`${c.req.method} ${c.req.path}`);
+  await next();
+};
+
+const authMiddleware = async (c, next) => {
+  const token = c.req.header('authorization');
+  if (!token) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  await next();
+};
+
+// Apply middlewares to A2A routes
+const appBuilder = new A2AHonoApp(requestHandler);
+const app = new Hono();
+appBuilder.setupRoutes(
+  app,
+  "/a2a",  // base URL
+  [loggingMiddleware, authMiddleware]  // middlewares array
+);
+
+serve({ fetch: app.fetch, port: 4000 });
+```
+
+### API Signature
+
+Both adapters follow the same pattern:
+
+```typescript
+setupRoutes(
+  app: Express | Hono,
+  baseUrl?: string,
+  middlewares?: MiddlewareHandler[],
+  agentCardPath?: string
+)
+```
+
+-----
 
 ## Handling Task Cancellation
 

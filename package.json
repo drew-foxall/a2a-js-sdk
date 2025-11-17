@@ -79,7 +79,8 @@
     "agents:movie-agent": "tsx src/samples/agents/movie-agent/index.ts",
     "agents:sample-agent": "tsx src/samples/agents/sample-agent/index.ts",
     "agents:hono-sample-agent": "tsx src/samples/agents/hono-sample-agent/index.ts",
-    "agents:extension-agent": "tsx src/samples/extensions/index.ts"
+    "agents:extension-agent": "tsx src/samples/extensions/index.ts",
+    "agents:hono-extension-agent": "tsx src/samples/extensions/hono-index.ts"
   },
   "dependencies": {
     "uuid": "^11.1.0"
