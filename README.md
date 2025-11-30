@@ -25,8 +25,10 @@ This fork extends the original A2A JavaScript SDK with **Hono framework support*
 ### ✨ What's New in This Fork
 
 - **🎯 Hono Adapter**: Full A2A protocol support for the [Hono](https://hono.dev/) framework
+- **⚡ Edge Runtime Support**: Native compatibility with Cloudflare Workers, Deno, and Bun (no Node.js compat mode needed!)
+- **🌐 Universal JavaScript**: Replaced `EventEmitter` with web-standard `EventTarget` API
 - **🚀 SSE Streaming**: Complete Server-Sent Events implementation for Hono
-- **✅ Comprehensive Tests**: 25 tests passing for Hono adapter
+- **✅ Comprehensive Tests**: 24 tests passing for Hono adapter
 - **🔌 Middleware Support**: Full middleware injection capabilities for both Express and Hono
 - **🧩 Extension Support**: Complete A2A extensions protocol support for both adapters
 - **📦 Easy Integration**: Identical API pattern as Express adapter for consistency
@@ -35,8 +37,10 @@ This fork extends the original A2A JavaScript SDK with **Hono framework support*
 
 ### When to Use This Fork
 
+- ✅ You want to deploy to **Cloudflare Workers** (native support, no `nodejs_compat` needed)
 - ✅ You want to use **Hono** instead of Express
 - ✅ You need **edge runtime compatibility** (Cloudflare Workers, Deno, Bun)
+- ✅ You want **browser compatibility** for universal JavaScript applications
 - ✅ You want a **lightweight** alternative to Express
 - ✅ You still want all the Express functionality (both adapters included!)
 
@@ -51,10 +55,12 @@ This fork extends the original A2A JavaScript SDK with **Hono framework support*
 | JSON-RPC Error Handling | ✅ | ✅ |
 | Custom Agent Card Paths | ✅ | ✅ |
 | Base URL Configuration | ✅ | ✅ |
-| Test Coverage | 20 tests | 25 tests |
-| Edge Runtime Support | ❌ | ✅ |
+| Test Coverage | 20 tests | 24 tests |
+| Edge Runtime Support | ✅ (Node.js 15+) | ✅ (All modern runtimes) |
+| Cloudflare Workers | ⚠️ via nodejs_compat | ✅ Native |
+| Browser Support | ✅ | ✅ |
 
-**Result:** 🎯 **Complete Feature Parity** - Choose based on runtime needs, not features!
+**Result:** 🎯 **Complete Feature Parity** + **Universal JavaScript** (EventTarget-based)!
 
 ### Original Repository
 
@@ -687,6 +693,121 @@ setupRoutes(
   agentCardPath?: string
 )
 ```
+
+-----
+
+## ⚡ Edge Runtime Compatibility
+
+This SDK uses **web-standard APIs** (`EventTarget` instead of Node.js `EventEmitter`), making it truly universal and compatible with modern JavaScript runtimes.
+
+### Supported Runtimes
+
+| Runtime | Status | Notes |
+|---------|--------|-------|
+| **Cloudflare Workers** | ✅ Native | No `nodejs_compat` flag needed |
+| **Deno** | ✅ Native | No `npm:` shims required |
+| **Bun** | ✅ Native | Full web API support |
+| **Node.js 15+** | ✅ Native | EventTarget built-in |
+| **Browsers** | ✅ Native | True universal JavaScript |
+| **Node.js 14** | ❌ | EventTarget not available (EOL) |
+
+### Cloudflare Workers Example
+
+Deploy A2A agents to the edge with **zero Node.js compatibility layers**:
+
+```typescript
+// worker.ts - No special configuration needed!
+import { Hono } from "hono";
+import { A2AHonoApp, DefaultRequestHandler } from "@drew-foxall/a2a-js-sdk/server/hono";
+import type { AgentCard } from "@drew-foxall/a2a-js-sdk";
+
+const agentCard: AgentCard = {
+  name: "Edge Agent",
+  description: "Running natively on Cloudflare Workers",
+  // ... rest of agent card
+};
+
+const requestHandler = new DefaultRequestHandler(/* your executor */);
+const appBuilder = new A2AHonoApp(requestHandler);
+const app = new Hono();
+appBuilder.setupRoutes(app);
+
+export default app;
+```
+
+```toml
+# wrangler.toml - No nodejs_compat needed! 🎉
+name = "a2a-edge-agent"
+main = "worker.ts"
+compatibility_date = "2024-01-01"
+# That's it! No compatibility flags required.
+```
+
+### Why This Matters
+
+**Before (Node.js EventEmitter):**
+- ❌ Required `nodejs_compat` flag in Cloudflare Workers
+- ❌ Increased cold start time
+- ❌ Limited browser compatibility
+- ❌ Deno required npm: protocol
+
+**After (Web-Standard EventTarget):**
+- ✅ Native edge runtime support
+- ✅ Faster cold starts
+- ✅ True universal JavaScript
+- ✅ Zero polyfills or shims needed
+
+### Technical Details
+
+The SDK's internal event system uses `EventTarget` and `CustomEvent` APIs:
+
+```typescript
+// Publishing events
+eventBus.publish(event);  // Uses dispatchEvent(new CustomEvent())
+
+// Subscribing to events  
+eventBus.on('event', handler);  // Uses addEventListener()
+```
+
+For more details, see [`EVENTTARGET_MIGRATION.md`](EVENTTARGET_MIGRATION.md).
+
+-----
+
+## 📚 Examples Repository
+
+Comprehensive, production-ready examples using **AI SDK + Hono** are available in a separate repository:
+
+### 👉 [a2a-js-sdk-examples](https://github.com/drew-foxall/a2a-js-sdk-examples)
+
+**Available Examples:**
+
+| Agent | Description | Features |
+|-------|-------------|----------|
+| **🎬 Movie Info Agent** | TMDB API integration for movie queries | Conversation history, tool calling, state management |
+| **💻 Coder Agent** | AI-powered code generation | Streaming responses, multi-file artifacts, markdown parsing |
+| **✍️ Content Editor Agent** | Professional content editing | Proof-reading, polishing, content improvement |
+
+### Why AI SDK?
+
+These examples use [Vercel AI SDK](https://sdk.vercel.ai) instead of Genkit, providing:
+
+- **Provider Agnostic**: Works with OpenAI, Anthropic, Google, and more
+- **Better TypeScript Support**: Full type safety and modern APIs
+- **Native Streaming**: Built-in streaming with proper backpressure
+- **Smaller Bundle**: Lightweight with no unnecessary dependencies
+
+### Feature Parity
+
+All examples achieve **100% feature parity** with the original [a2a-samples](https://github.com/a2aproject/a2a-samples) Genkit implementations:
+
+- ✅ Conversation history management
+- ✅ Tool calling and function execution
+- ✅ Streaming responses with SSE
+- ✅ Multi-file artifact generation
+- ✅ State parsing (`COMPLETED`, `AWAITING_USER_INPUT`)
+- ✅ Goal support and task management
+
+Each example includes comprehensive documentation, environment setup guides, and testing instructions.
 
 -----
 
