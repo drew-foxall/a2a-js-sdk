@@ -1,13 +1,13 @@
 {
   "name": "@drew-foxall/a2a-js-sdk",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Server & Client SDK for Agent2Agent protocol with Express and Hono support",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/drew-foxall/a2a-js-sdk.git"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=15"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -107,6 +107,10 @@
     "ai-agents",
     "hono",
     "express",
+    "cloudflare-workers",
+    "edge-runtime",
+    "deno",
+    "bun",
     "sse",
     "streaming",
     "server-sent-events",
