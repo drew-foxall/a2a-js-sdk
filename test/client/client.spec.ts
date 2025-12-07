@@ -13,21 +13,30 @@ import {
   DeleteTaskPushNotificationConfigSuccessResponse,
   JSONRPCErrorResponse,
   JSONRPCResponse,
-  JSONRPCSuccessResponse
 } from '../../src/types.js';
 import { AGENT_CARD_PATH } from '../../src/constants.js';
-import { extractRequestId, createResponse, createAgentCardResponse, createMockAgentCard, createMockFetch } from './util.js';
+import {
+  extractRequestId,
+  createResponse,
+  createAgentCardResponse,
+  createMockAgentCard,
+  createMockFetch,
+} from './util.js';
 
 // Helper functions to check if responses are success responses
 function isSuccessResponse(response: SendMessageResponse): response is SendMessageSuccessResponse {
   return 'result' in response;
 }
 
-function isListConfigSuccessResponse(response: ListTaskPushNotificationConfigResponse): response is ListTaskPushNotificationConfigSuccessResponse {
+function isListConfigSuccessResponse(
+  response: ListTaskPushNotificationConfigResponse
+): response is ListTaskPushNotificationConfigSuccessResponse {
   return 'result' in response;
 }
 
-function isDeleteConfigSuccessResponse(response: DeleteTaskPushNotificationConfigResponse): response is DeleteTaskPushNotificationConfigSuccessResponse {
+function isDeleteConfigSuccessResponse(
+  response: DeleteTaskPushNotificationConfigResponse
+): response is DeleteTaskPushNotificationConfigSuccessResponse {
   return 'result' in response;
 }
 
@@ -50,7 +59,7 @@ describe('A2AClient Basic Tests', () => {
     // Create a fresh mock fetch for each test
     mockFetch = createMockFetch();
     client = await A2AClient.fromCardUrl(agentCardUrl, {
-      fetchImpl: mockFetch
+      fetchImpl: mockFetch,
     });
   });
 
@@ -65,15 +74,17 @@ describe('A2AClient Basic Tests', () => {
       // Use a mock fetch to avoid real HTTP requests during testing
       const mockFetchForDefault = createMockFetch();
       const basicClient = await A2AClient.fromCardUrl(agentCardUrl, {
-        fetchImpl: mockFetchForDefault
+        fetchImpl: mockFetchForDefault,
       });
       expect(basicClient).to.be.instanceOf(A2AClient);
     });
 
     it('should initialize client with custom fetch implementation', async () => {
-      const customFetch = sinon.stub().resolves(new Response(JSON.stringify(createMockAgentCard()), { status: 200 }));
+      const customFetch = sinon
+        .stub()
+        .resolves(new Response(JSON.stringify(createMockAgentCard()), { status: 200 }));
       const clientWithCustomFetch = await A2AClient.fromCardUrl(agentCardUrl, {
-        fetchImpl: customFetch
+        fetchImpl: customFetch,
       });
       expect(clientWithCustomFetch).to.be.instanceOf(A2AClient);
     });
@@ -88,7 +99,6 @@ describe('A2AClient Basic Tests', () => {
       let caughtError: Error | undefined;
       try {
         // Arrange: Ensure no global fetch is defined for this test
-        // @ts-ignore
         global.fetch = undefined;
 
         // Act: Instantiate the client without providing a custom fetch implementation.
@@ -112,9 +122,9 @@ describe('A2AClient Basic Tests', () => {
       await client.getAgentCard();
 
       expect(mockFetch.callCount).to.be.greaterThan(0);
-      const agentCardCall = mockFetch.getCalls().find(call =>
-        call.args[0].includes(AGENT_CARD_PATH)
-      );
+      const agentCardCall = mockFetch
+        .getCalls()
+        .find((call) => call.args[0].includes(AGENT_CARD_PATH));
       expect(agentCardCall).to.exist;
     });
   });
@@ -123,11 +133,15 @@ describe('A2AClient Basic Tests', () => {
     it('should construct with a URL and log a warning', async () => {
       const consoleWarnSpy = sinon.spy(console, 'warn');
       const backwardCompatibleClient = new A2AClient(agentBaseUrl, {
-        fetchImpl: mockFetch
+        fetchImpl: mockFetch,
       });
 
       expect(consoleWarnSpy.calledOnce).to.be.true;
-      expect(consoleWarnSpy.calledWith("Warning: Constructing A2AClient with a URL is deprecated. Please use A2AClient.fromCardUrl() instead.")).to.be.true;
+      expect(
+        consoleWarnSpy.calledWith(
+          'Warning: Constructing A2AClient with a URL is deprecated. Please use A2AClient.fromCardUrl() instead.'
+        )
+      ).to.be.true;
 
       const agentCard = await backwardCompatibleClient.getAgentCard();
       expect(agentCard).to.have.property('name', 'Test Agent');
@@ -155,9 +169,9 @@ describe('A2AClient Basic Tests', () => {
       // Second call - should not fetch agent card again
       await client.getAgentCard();
 
-      const agentCardCalls = mockFetch.getCalls().filter(call =>
-        call.args[0].includes(AGENT_CARD_PATH)
-      );
+      const agentCardCalls = mockFetch
+        .getCalls()
+        .filter((call) => call.args[0].includes(AGENT_CARD_PATH));
 
       expect(agentCardCalls).to.have.length(1);
     });
@@ -173,7 +187,7 @@ describe('A2AClient Basic Tests', () => {
       // Create client after setting up the mock to avoid console.error during construction
       try {
         await A2AClient.fromCardUrl(agentCardUrl, {
-          fetchImpl: errorFetch
+          fetchImpl: errorFetch,
         });
         expect.fail('Expected error to be thrown');
       } catch (error) {
@@ -190,11 +204,13 @@ describe('A2AClient Basic Tests', () => {
           kind: 'message',
           messageId: 'test-msg-1',
           role: 'user',
-          parts: [{
-            kind: 'text',
-            text: 'Hello, agent!'
-          } as TextPart]
-        }
+          parts: [
+            {
+              kind: 'text',
+              text: 'Hello, agent!',
+            } as TextPart,
+          ],
+        },
       };
 
       const result = await client.sendMessage(messageParams);
@@ -203,16 +219,14 @@ describe('A2AClient Basic Tests', () => {
       expect(mockFetch.callCount).to.be.greaterThan(0);
 
       // Verify RPC call was made
-      const rpcCall = mockFetch.getCalls().find(call =>
-        call.args[0].includes('/api')
-      );
+      const rpcCall = mockFetch.getCalls().find((call) => call.args[0].includes('/api'));
       expect(rpcCall).to.exist;
       expect(rpcCall.args[1]).to.deep.include({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+          Accept: 'application/json',
+        },
       });
       expect(rpcCall.args[1].body).to.include('"method":"message/send"');
 
@@ -228,7 +242,7 @@ describe('A2AClient Basic Tests', () => {
       const errorFetch = sinon.stub().callsFake(async (url: string, options?: RequestInit) => {
         if (url.includes(AGENT_CARD_PATH)) {
           const mockAgentCard = createMockAgentCard({
-            description: 'A test agent for error testing'
+            description: 'A test agent for error testing',
           });
           return createAgentCardResponse(mockAgentCard);
         }
@@ -237,17 +251,22 @@ describe('A2AClient Basic Tests', () => {
           // Extract request ID from the request body
           const requestId = extractRequestId(options);
 
-          return createResponse(requestId, undefined, {
-            code: -32603,
-            message: 'Internal error'
-          }, 500);
+          return createResponse(
+            requestId,
+            undefined,
+            {
+              code: -32603,
+              message: 'Internal error',
+            },
+            500
+          );
         }
 
         return new Response('Not found', { status: 404 });
       });
 
       const errorClient = await A2AClient.fromCardUrl(agentCardUrl, {
-        fetchImpl: errorFetch
+        fetchImpl: errorFetch,
       });
 
       const messageParams: MessageSendParams = {
@@ -255,11 +274,13 @@ describe('A2AClient Basic Tests', () => {
           kind: 'message',
           messageId: 'test-msg-error',
           role: 'user',
-          parts: [{
-            kind: 'text',
-            text: 'This should fail'
-          } as TextPart]
-        }
+          parts: [
+            {
+              kind: 'text',
+              text: 'This should fail',
+            } as TextPart,
+          ],
+        },
       };
 
       try {
@@ -277,7 +298,7 @@ describe('A2AClient Basic Tests', () => {
 
       try {
         await A2AClient.fromCardUrl(agentCardUrl, {
-          fetchImpl: networkErrorFetch
+          fetchImpl: networkErrorFetch,
         });
         expect.fail('Expected error to be thrown');
       } catch (error) {
@@ -291,7 +312,7 @@ describe('A2AClient Basic Tests', () => {
         if (url.includes(AGENT_CARD_PATH)) {
           return new Response('Invalid JSON', {
             status: 200,
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
           });
         }
         return new Response('Not found', { status: 404 });
@@ -299,7 +320,7 @@ describe('A2AClient Basic Tests', () => {
 
       try {
         await A2AClient.fromCardUrl(agentCardUrl, {
-          fetchImpl: malformedFetch
+          fetchImpl: malformedFetch,
         });
         expect.fail('Expected error to be thrown');
       } catch (error) {
@@ -320,9 +341,16 @@ describe('A2AClient Basic Tests', () => {
             defaultOutputModes: ['text'],
             capabilities: {
               streaming: true,
-              pushNotifications: true
+              pushNotifications: true,
             },
-            skills: []
+            skills: [
+              {
+                id: 'test_agent',
+                name: 'Test Agent',
+                description: 'Simulate the general flow of a streaming agent.',
+                tags: ['test'],
+              },
+            ],
           };
           return createAgentCardResponse(invalidAgentCard);
         }
@@ -331,7 +359,7 @@ describe('A2AClient Basic Tests', () => {
 
       try {
         await A2AClient.fromCardUrl(agentCardUrl, {
-          fetchImpl: missingUrlFetch
+          fetchImpl: missingUrlFetch,
         });
         expect.fail('Expected error to be thrown');
       } catch (error) {
@@ -346,12 +374,12 @@ describe('A2AClient Basic Tests', () => {
       const mockAgentCard = createMockAgentCard({
         name: 'Static Agent',
         description: 'An agent created from a static method',
-        url: 'https://static-agent.example.com/api'
+        url: 'https://static-agent.example.com/api',
       });
       const mockFetchForStatic = createMockFetch();
 
       const clientFromCard = new A2AClient(mockAgentCard, {
-        fetchImpl: mockFetchForStatic
+        fetchImpl: mockFetchForStatic,
       });
 
       expect(clientFromCard).to.be.instanceOf(A2AClient);
@@ -367,11 +395,13 @@ describe('A2AClient Basic Tests', () => {
           kind: 'message',
           messageId: 'test-msg-static',
           role: 'user',
-          parts: [{
-            kind: 'text',
-            text: 'Hello, static agent!'
-          } as TextPart]
-        }
+          parts: [
+            {
+              kind: 'text',
+              text: 'Hello, static agent!',
+            } as TextPart,
+          ],
+        },
       };
 
       const result = await clientFromCard.sendMessage(messageParams);
@@ -384,27 +414,35 @@ describe('A2AClient Basic Tests', () => {
     });
 
     it('should throw an error if agent card is missing url in constructor', () => {
-        const mockAgentCard = {
+      const mockAgentCard = {
+        name: 'Test Agent',
+        description: 'A test agent without URL',
+        protocolVersion: '1.0.0',
+        version: '1.0.0',
+        // Missing url field
+        defaultInputModes: ['text'],
+        defaultOutputModes: ['text'],
+        capabilities: {
+          streaming: true,
+          pushNotifications: true,
+        },
+        skills: [
+          {
+            id: 'test_agent',
             name: 'Test Agent',
-            description: 'A test agent without URL',
-            protocolVersion: '1.0.0',
-            version: '1.0.0',
-            // Missing url field
-            defaultInputModes: ['text'],
-            defaultOutputModes: ['text'],
-            capabilities: {
-              streaming: true,
-              pushNotifications: true
-            },
-            skills: []
-          };
-        expect(() => new A2AClient(mockAgentCard as any)).to.throw("Provided Agent Card does not contain a valid 'url' for the service endpoint.");
+            description: 'Simulate the general flow of a streaming agent.',
+            tags: ['test'],
+          },
+        ],
+      };
+      expect(() => new A2AClient(mockAgentCard as any)).to.throw(
+        "Provided Agent Card does not contain a valid 'url' for the service endpoint."
+      );
     });
   });
 });
 
 describe('Extension Methods', () => {
-  let client: A2AClient;
   let mockFetch: sinon.SinonStub;
   let originalConsoleError: typeof console.error;
   const agentCardUrl = `https://test-agent.example.com/${AGENT_CARD_PATH}`;
@@ -416,8 +454,8 @@ describe('Extension Methods', () => {
 
     // Create a fresh mock fetch for each test
     mockFetch = createMockFetch();
-    client = await A2AClient.fromCardUrl(agentCardUrl, {
-      fetchImpl: mockFetch
+    await A2AClient.fromCardUrl(agentCardUrl, {
+      fetchImpl: mockFetch,
     });
   });
 
@@ -431,133 +469,126 @@ describe('Extension Methods', () => {
     it('should call a custom extension method successfully', async () => {
       // Define a custom extension method name
       const extensionMethod = 'custom/extension/method';
-      
+
       // Define custom params for the extension method
       interface CustomExtensionParams {
         query: string;
         limit: number;
       }
-      
-      // Define the expected response type
-      // Define custom extension result type
-      interface CustomExtensionResult {
-        result: {
-          items: Array<{
-            id: string;
-            name: string;
-          }>;
-          totalCount: number;
-        };
-      }
-      
+
       // Set up custom params for the test
       const customParams: CustomExtensionParams = {
         query: 'test query',
-        limit: 5
+        limit: 5,
       };
-      
+
       // Create expected response data
       const expectedResult = {
         items: [
           { id: '1', name: 'Item 1' },
           { id: '2', name: 'Item 2' },
-          { id: '3', name: 'Item 3' }
+          { id: '3', name: 'Item 3' },
         ],
-        totalCount: 3
+        totalCount: 3,
       };
-      
+
       // Setup custom fetch mock for this specific test
       const customFetch = sinon.stub().callsFake(async (url: string, options?: RequestInit) => {
         if (url.includes(AGENT_CARD_PATH)) {
           return createAgentCardResponse(createMockAgentCard());
         }
-        
+
         if (url.includes('/api')) {
           const requestId = extractRequestId(options);
           const requestBody = JSON.parse(options?.body as string);
-          
+
           // Verify the request was made correctly
           expect(requestBody.method).to.equal(extensionMethod);
           expect(requestBody.params).to.deep.equal(customParams);
-          
+
           // Return the expected result
           return createResponse(requestId, expectedResult);
         }
-        
+
         return new Response('Not found', { status: 404 });
       });
-      
+
       // Create a client with our custom fetch
       const extensionClient = new A2AClient('https://test-agent.example.com', {
-        fetchImpl: customFetch
+        fetchImpl: customFetch,
       });
-      
+
       // Call the extension method
       const response = await extensionClient.callExtensionMethod<
         CustomExtensionParams,
         JSONRPCResponse
       >(extensionMethod, customParams);
-      
+
       expect(response).to.have.property('result');
-      
+
       // Check if we got a success response
       if ('result' in response) {
         const expectedResponseResult = {
           items: [
             { id: '1', name: 'Item 1' },
             { id: '2', name: 'Item 2' },
-            { id: '3', name: 'Item 3' }
+            { id: '3', name: 'Item 3' },
           ],
-          totalCount: 3
+          totalCount: 3,
         };
-        
+
         expect(response.result).to.deep.equal(expectedResponseResult);
       } else {
         expect.fail('Expected success response but got error response');
       }
     });
-    
+
     it('should handle errors from extension methods', async () => {
       // Define a custom extension method name
       const extensionMethod = 'custom/failing/method';
-      
+
       // Define custom params for the extension method
       const customParams = {
-        invalid: true
+        invalid: true,
       };
-      
+
       // Setup custom fetch mock for this specific test
       const errorFetch = sinon.stub().callsFake(async (url: string, options?: RequestInit) => {
         if (url.includes(AGENT_CARD_PATH)) {
           return createAgentCardResponse(createMockAgentCard());
         }
-        
+
         if (url.includes('/api')) {
           const requestId = extractRequestId(options);
-          
+
           // Return an error response
-          return createResponse(requestId, undefined, {
-            code: -32603,
-            message: 'Extension method error: Invalid parameters'
-          }, 500);
+          return createResponse(
+            requestId,
+            undefined,
+            {
+              code: -32603,
+              message: 'Extension method error: Invalid parameters',
+            },
+            500
+          );
         }
-        
+
         return new Response('Not found', { status: 404 });
       });
-      
+
       // Create a client with our error fetch
       const errorClient = new A2AClient('https://test-agent.example.com', {
-        fetchImpl: errorFetch
+        fetchImpl: errorFetch,
       });
-      
+
       // Define the error we expect to get from the server
       const expectedError = {
         code: -32603,
-        message: 'Extension method error: Invalid parameters'
+        message: 'Extension method error: Invalid parameters',
       };
-      
+
       const response = await errorClient.callExtensionMethod(extensionMethod, customParams);
-      
+
       // Check that we got a JSON-RPC error response
       expect(isErrorResponse(response)).to.be.true;
       if (isErrorResponse(response)) {
@@ -572,20 +603,12 @@ describe('Extension Methods', () => {
 });
 
 describe('Push Notification Config Operations', () => {
-  let client: A2AClient;
-  let mockFetch: sinon.SinonStub;
   let originalConsoleError: typeof console.error;
 
   beforeEach(() => {
     // Suppress console.error during tests to avoid noise
     originalConsoleError = console.error;
     console.error = () => {};
-    
-    // Create a fresh mock fetch for each test
-    mockFetch = createMockFetch();
-    client = new A2AClient('https://test-agent.example.com', {
-      fetchImpl: mockFetch
-    });
   });
 
   afterEach(() => {
@@ -598,7 +621,7 @@ describe('Push Notification Config Operations', () => {
     it('should list push notification configurations successfully', async () => {
       // Define mock params
       const params = {
-        id: 'test-task-123'
+        id: 'test-task-123',
       };
 
       // Define mock response data for the push notification configs
@@ -606,54 +629,54 @@ describe('Push Notification Config Operations', () => {
         {
           id: 'config-1',
           url: 'https://notify1.example.com/webhook',
-          token: 'token-1'
+          token: 'token-1',
         },
         {
           id: 'config-2',
           url: 'https://notify2.example.com/webhook',
-          token: 'token-2'
-        }
+          token: 'token-2',
+        },
       ];
 
       // Setup custom mock fetch for this specific test
       const customFetch = sinon.stub().callsFake(async (url: string, options?: RequestInit) => {
         if (url.includes(AGENT_CARD_PATH)) {
           const mockAgentCard = createMockAgentCard({
-            capabilities: { pushNotifications: true }
+            capabilities: { pushNotifications: true },
           });
           return createAgentCardResponse(mockAgentCard);
         }
-        
+
         if (url.includes('/api')) {
           const requestId = extractRequestId(options);
-          
+
           // Check if the request is for the list operation
           const body = JSON.parse(options?.body as string);
           if (body.method === 'tasks/pushNotificationConfig/list') {
             // Verify the params were sent correctly
             expect(body.params).to.deep.equal(params);
-            
+
             // Return a successful response with mock configs
             // The result is an array of TaskPushNotificationConfig objects
-            const configs = mockConfigsData.map(config => ({
+            const configs = mockConfigsData.map((config) => ({
               taskId: params.id,
-              pushNotificationConfig: config
+              pushNotificationConfig: config,
             }));
             return createResponse(requestId, configs);
           }
         }
-        
+
         return new Response('Not found', { status: 404 });
       });
 
       // Use the custom fetch implementation for this test
       const testClient = new A2AClient('https://test-agent.example.com', {
-        fetchImpl: customFetch
+        fetchImpl: customFetch,
       });
 
       // Call the method and verify the result
       const result = await testClient.listTaskPushNotificationConfig(params);
-      
+
       // Verify the result is a success response
       expect(isListConfigSuccessResponse(result)).to.be.true;
       if (isListConfigSuccessResponse(result)) {
@@ -664,19 +687,19 @@ describe('Push Notification Config Operations', () => {
             pushNotificationConfig: {
               id: 'config-1',
               url: 'https://notify1.example.com/webhook',
-              token: 'token-1'
-            }
+              token: 'token-1',
+            },
           },
           {
             taskId: params.id,
             pushNotificationConfig: {
               id: 'config-2',
               url: 'https://notify2.example.com/webhook',
-              token: 'token-2'
-            }
-          }
+              token: 'token-2',
+            },
+          },
         ];
-        
+
         // Use deep.equal for more readable assertion
         expect(result.result).to.deep.equal(expectedConfigs);
       }
@@ -688,45 +711,45 @@ describe('Push Notification Config Operations', () => {
       // Define mock params
       const params = {
         id: 'test-task-123',
-        pushNotificationConfigId: 'config-to-delete'
+        pushNotificationConfigId: 'config-to-delete',
       };
 
       // Setup custom mock fetch for this specific test
       const customFetch = sinon.stub().callsFake(async (url: string, options?: RequestInit) => {
         if (url.includes(AGENT_CARD_PATH)) {
           const mockAgentCard = createMockAgentCard({
-            capabilities: { pushNotifications: true }
+            capabilities: { pushNotifications: true },
           });
           return createAgentCardResponse(mockAgentCard);
         }
-        
+
         if (url.includes('/api')) {
           const requestId = extractRequestId(options);
-          
+
           // Check if the request is for the delete operation
           const body = JSON.parse(options?.body as string);
           if (body.method === 'tasks/pushNotificationConfig/delete') {
             // Verify the params were sent correctly
             expect(body.params).to.deep.equal(params);
-            
+
             // Return a successful response,
             // 'result' should just be 'null' according to the spec:
             // https://a2a-protocol.org/latest/specification/#79-taskspushnotificationconfigdelete
             return createResponse(requestId, null);
           }
         }
-        
+
         return new Response('Not found', { status: 404 });
       });
 
       // Use the custom fetch implementation for this test
       const testClient = new A2AClient('https://test-agent.example.com', {
-        fetchImpl: customFetch
+        fetchImpl: customFetch,
       });
 
       // Call the method and verify the result
       const result = await testClient.deleteTaskPushNotificationConfig(params);
-      
+
       // Verify the result is a success response
       expect(isDeleteConfigSuccessResponse(result)).to.be.true;
       if (isDeleteConfigSuccessResponse(result)) {
@@ -735,4 +758,3 @@ describe('Push Notification Config Operations', () => {
     });
   });
 });
-

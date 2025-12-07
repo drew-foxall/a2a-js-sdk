@@ -1,12 +1,4 @@
-import fs from "fs/promises";
-import path from "path";
-import {Task} from "../types.js";
-import { A2AError } from "./error.js";
-import {
-  getCurrentTimestamp,
-  isArtifactUpdate,
-  isTaskStatusUpdate,
-} from "./utils.js";
+import { Task } from '../types.js';
 
 /**
  * Simplified interface for task storage providers.
@@ -40,11 +32,11 @@ export class InMemoryTaskStore implements TaskStore {
   async load(taskId: string): Promise<Task | undefined> {
     const entry = this.store.get(taskId);
     // Return copies to prevent external mutation
-    return entry ? {...entry} : undefined;
+    return entry ? { ...entry } : undefined;
   }
 
   async save(task: Task): Promise<void> {
     // Store copies to prevent internal mutation if caller reuses objects
-    this.store.set(task.id, {...task});
+    this.store.set(task.id, { ...task });
   }
 }
