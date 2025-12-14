@@ -1,4 +1,5 @@
-import { defineConfig } from 'vitest/config';
+import { mergeConfig } from 'vitest/config';
+import defaultConfig from './vitest.config';
 
 /**
  * Vitest configuration for Edge runtime testing.
@@ -14,11 +15,9 @@ import { defineConfig } from 'vitest/config';
  * The Edge runtime is provided by @edge-runtime/vm, which emulates
  * Cloudflare Workers, Vercel Edge Functions, and similar environments.
  */
-export default defineConfig({
+export default mergeConfig(defaultConfig, {
   test: {
-    globals: false,
     environment: 'edge-runtime',
-    include: ['test/**/*.spec.ts'],
     exclude: [
       // Express tests require Node.js-specific APIs (http, Express framework)
       'test/server/a2a_express_app.spec.ts',
