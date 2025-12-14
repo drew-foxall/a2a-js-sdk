@@ -1,6 +1,6 @@
 {
   "name": "@drew-foxall/a2a-js-sdk",
-  "version": "0.3.6",
+  "version": "0.3.6-1",
   "description": "Server & Client SDK for Agent2Agent protocol with Express and Hono support",
   "repository": {
     "type": "git",
