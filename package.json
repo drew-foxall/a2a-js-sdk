@@ -1,7 +1,7 @@
 {
   "name": "@drew-foxall/a2a-js-sdk",
   "version": "0.3.6-1",
-  "description": "Server & Client SDK for Agent2Agent protocol with Express and Hono support",
+  "description": "Server & Client SDK for Agent2Agent protocol with Express, Hono, and Edge Runtime support",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -24,6 +24,11 @@
       "import": "./dist/server/index.js",
       "require": "./dist/server/index.cjs"
     },
+    "./server/core": {
+      "types": "./dist/server/core/index.d.ts",
+      "import": "./dist/server/core/index.js",
+      "require": "./dist/server/core/index.cjs"
+    },
     "./server/express": {
       "types": "./dist/server/express/index.d.ts",
       "import": "./dist/server/express/index.js",
@@ -33,6 +38,36 @@
       "types": "./dist/server/hono/index.d.ts",
       "import": "./dist/server/hono/index.js",
       "require": "./dist/server/hono/index.cjs"
+    },
+    "./server/adapters/hono": {
+      "types": "./dist/server/adapters/hono.d.ts",
+      "import": "./dist/server/adapters/hono.js",
+      "require": "./dist/server/adapters/hono.cjs"
+    },
+    "./server/adapters/elysia": {
+      "types": "./dist/server/adapters/elysia.d.ts",
+      "import": "./dist/server/adapters/elysia.js",
+      "require": "./dist/server/adapters/elysia.cjs"
+    },
+    "./server/adapters/itty-router": {
+      "types": "./dist/server/adapters/itty-router.d.ts",
+      "import": "./dist/server/adapters/itty-router.js",
+      "require": "./dist/server/adapters/itty-router.cjs"
+    },
+    "./server/adapters/fresh": {
+      "types": "./dist/server/adapters/fresh.d.ts",
+      "import": "./dist/server/adapters/fresh.js",
+      "require": "./dist/server/adapters/fresh.cjs"
+    },
+    "./server/adapters/web-standard": {
+      "types": "./dist/server/adapters/web-standard.d.ts",
+      "import": "./dist/server/adapters/web-standard.js",
+      "require": "./dist/server/adapters/web-standard.cjs"
+    },
+    "./server/adapters/express": {
+      "types": "./dist/server/adapters/express.d.ts",
+      "import": "./dist/server/adapters/express.js",
+      "require": "./dist/server/adapters/express.cjs"
     },
     "./client": {
       "types": "./dist/client/index.d.ts",
@@ -100,10 +135,14 @@
     "uuid": "^11.1.0"
   },
   "peerDependencies": {
-    "express": "^4.21.2 || ^5.1.0"
+    "express": "^4.21.2 || ^5.1.0",
+    "hono": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "express": {
+      "optional": true
+    },
+    "hono": {
       "optional": true
     }
   },
@@ -113,7 +152,11 @@
     "ai-agents",
     "hono",
     "express",
+    "elysia",
+    "itty-router",
+    "fresh",
     "cloudflare-workers",
+    "vercel-edge",
     "edge-runtime",
     "deno",
     "bun",
@@ -121,7 +164,9 @@
     "streaming",
     "server-sent-events",
     "ai",
-    "agents"
+    "agents",
+    "web-standard",
+    "fetch-api"
   ],
   "author": "Drew Foxall",
   "bugs": {

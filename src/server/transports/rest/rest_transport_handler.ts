@@ -54,6 +54,11 @@ export const HTTP_STATUS = {
 } as const;
 
 /**
+ * Type representing valid HTTP status codes from HTTP_STATUS.
+ */
+export type RestHttpStatusCode = (typeof HTTP_STATUS)[keyof typeof HTTP_STATUS];
+
+/**
  * A2A error codes mapped to JSON-RPC and protocol-specific errors.
  */
 const A2A_ERROR_CODE = {
@@ -78,7 +83,7 @@ const A2A_ERROR_CODE = {
  * mapErrorToStatus(-32602) // returns 400 (Bad Request)
  * mapErrorToStatus(-32001) // returns 404 (Not Found)
  */
-export function mapErrorToStatus(errorCode: number): number {
+export function mapErrorToStatus(errorCode: number): RestHttpStatusCode {
   switch (errorCode) {
     case A2A_ERROR_CODE.PARSE_ERROR:
     case A2A_ERROR_CODE.INVALID_REQUEST:

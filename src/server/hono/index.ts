@@ -3,5 +3,11 @@
  * This module provides Hono.js specific functionality.
  */
 
-export { A2AHonoApp } from "./a2a_hono_app.js";
-
+export { A2AHonoApp } from './a2a_hono_app.js';
+export { UserBuilder } from './common.js';
+export { jsonRpcHandler } from './json_rpc_handler.js';
+export type { JsonRpcHandlerOptions } from './json_rpc_handler.js';
+export { agentCardHandler } from './agent_card_handler.js';
+export type { AgentCardHandlerOptions, AgentCardProvider } from './agent_card_handler.js';
+export { restHandler } from './rest_handler.js';
+export type { RestHandlerOptions } from './rest_handler.js';

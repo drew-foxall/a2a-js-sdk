@@ -7,6 +7,10 @@ import { defineConfig } from 'vitest/config';
  * Node.js-specific code (Express framework) that is not compatible with
  * Edge runtime environments.
  *
+ * Includes:
+ * - Hono tests (test/server/a2a_hono_app.spec.ts) - Hono is designed for edge runtimes
+ * - All other tests that are edge-compatible
+ *
  * The Edge runtime is provided by @edge-runtime/vm, which emulates
  * Cloudflare Workers, Vercel Edge Functions, and similar environments.
  */

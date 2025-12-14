@@ -1,37 +1,25 @@
-import { Hono } from "hono";
+import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { v4 as uuidv4 } from 'uuid';
 
-import {
-  AgentCard,
-  Task,
-  TaskStatusUpdateEvent,
-  Message
-} from "../../../index.js";
+import { AgentCard, Task, TaskStatusUpdateEvent, Message } from '../../../index.js';
 import {
   InMemoryTaskStore,
   TaskStore,
   AgentExecutor,
   RequestContext,
   ExecutionEventBus,
-  DefaultRequestHandler
-} from "../../../server/index.js";
-import { A2AHonoApp } from "../../../server/hono/index.js";
+  DefaultRequestHandler,
+} from '../../../server/index.js';
+import { A2AHonoApp } from '../../../server/hono/index.js';
 
 /**
  * SampleAgentExecutor implements the agent's core logic.
  */
 class SampleAgentExecutor implements AgentExecutor {
+  public cancelTask = async (_taskId: string, _eventBus: ExecutionEventBus): Promise<void> => {};
 
-  public cancelTask = async (
-    taskId: string,
-    eventBus: ExecutionEventBus,
-  ): Promise<void> => { };
-
-  async execute(
-    requestContext: RequestContext,
-    eventBus: ExecutionEventBus
-  ): Promise<void> {
+  async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
     const userMessage = requestContext.userMessage;
     const existingTask = requestContext.task;
 
@@ -83,7 +71,7 @@ class SampleAgentExecutor implements AgentExecutor {
     // 3. Publish final task status update
     const agentReplyText = this.parseInputMessage(userMessage);
     console.info(`[SampleAgentExecutor] Prompt response: ${agentReplyText}`);
- 
+
     const agentMessage: Message = {
       kind: 'message',
       role: 'agent',
@@ -104,31 +92,29 @@ class SampleAgentExecutor implements AgentExecutor {
       },
       final: true,
     };
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing delay
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate processing delay
     eventBus.publish(finalUpdate);
 
-    console.log(
-      `[SampleAgentExecutor] Task ${taskId} finished with state: completed`
-    );
+    console.log(`[SampleAgentExecutor] Task ${taskId} finished with state: completed`);
   }
 
   parseInputMessage(message: Message): string {
     /** Process the user query and return a response. */
-    const textPart = message.parts.find(part => part.kind === 'text');
+    const textPart = message.parts.find((part) => part.kind === 'text');
     const query = textPart ? textPart.text.trim() : '';
 
     if (!query) {
-      return "Hello! Please provide a message for me to respond to.";
+      return 'Hello! Please provide a message for me to respond to.';
     }
 
     // Simple responses based on input
     const queryLower = query.toLowerCase();
-    if (queryLower.includes("hello") || queryLower.includes("hi")) {
-      return "Hello World from Hono! Nice to meet you!";
-    } else if (queryLower.includes("how are you")) {
+    if (queryLower.includes('hello') || queryLower.includes('hi')) {
+      return 'Hello World from Hono! Nice to meet you!';
+    } else if (queryLower.includes('how are you')) {
       return "I'm doing great with Hono! Thanks for asking. How can I help you today?";
-    } else if (queryLower.includes("goodbye") || queryLower.includes("bye")) {
-      return "Goodbye! Have a wonderful day!";
+    } else if (queryLower.includes('goodbye') || queryLower.includes('bye')) {
+      return 'Goodbye! Have a wonderful day!';
     } else {
       return `Hello World from Hono! You said: '${query}'. Thanks for your message!`;
     }
@@ -139,11 +125,12 @@ class SampleAgentExecutor implements AgentExecutor {
 
 const sampleAgentCard: AgentCard = {
   name: 'Hono Sample Agent',
-  description: 'A sample agent using Hono to test the stream functionality and simulate the flow of tasks statuses.',
+  description:
+    'A sample agent using Hono to test the stream functionality and simulate the flow of tasks statuses.',
   url: 'http://localhost:41242/',
   provider: {
     organization: 'A2A Samples',
-    url: 'https://example.com/a2a-samples'
+    url: 'https://example.com/a2a-samples',
   },
   version: '1.0.0',
   protocolVersion: '0.3.0',
@@ -160,9 +147,9 @@ const sampleAgentCard: AgentCard = {
       name: 'Hono Sample Agent',
       description: 'Simulate the general flow of a streaming agent using Hono.',
       tags: ['sample', 'hono'],
-      examples: ["hi", "hello world", "how are you", "goodbye"],
+      examples: ['hi', 'hello world', 'how are you', 'goodbye'],
       inputModes: ['text'],
-      outputModes: ['text', 'task-status']
+      outputModes: ['text', 'task-status'],
     },
   ],
   supportsAuthenticatedExtendedCard: false,
@@ -176,11 +163,7 @@ async function main() {
   const agentExecutor: AgentExecutor = new SampleAgentExecutor();
 
   // 3. Create DefaultRequestHandler
-  const requestHandler = new DefaultRequestHandler(
-    sampleAgentCard,
-    taskStore,
-    agentExecutor
-  );
+  const requestHandler = new DefaultRequestHandler(sampleAgentCard, taskStore, agentExecutor);
 
   // 4. Create Hono app
   const honoApp = new Hono();
@@ -191,11 +174,11 @@ async function main() {
 
   // 6. Start the server using @hono/node-server
   const PORT = process.env.PORT || 41242;
-  
+
   console.log(`[HonoSampleAgent] Server starting on http://localhost:${PORT}`);
   console.log(`[HonoSampleAgent] Agent Card: http://localhost:${PORT}/.well-known/agent-card.json`);
   console.log('[HonoSampleAgent] Press Ctrl+C to stop the server');
-  
+
   serve({
     fetch: honoApp.fetch,
     port: Number(PORT),
@@ -203,4 +186,3 @@ async function main() {
 }
 
 main().catch(console.error);
-

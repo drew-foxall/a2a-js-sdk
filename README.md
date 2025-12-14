@@ -783,7 +783,136 @@ eventBus.publish(event);  // Uses dispatchEvent(new CustomEvent())
 eventBus.on('event', handler);  // Uses addEventListener()
 ```
 
-For more details, see [`EVENTTARGET_MIGRATION.md`](EVENTTARGET_MIGRATION.md).
+-----
+
+## 🏗️ Architecture: Core & Adapters
+
+This fork introduces a **layered architecture** that separates framework-agnostic logic from framework-specific adapters, enabling maximum code reuse and consistent behavior across all supported frameworks.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Transport Layer                             │
+│    ┌─────────────────────────┐    ┌─────────────────────────┐       │
+│    │ JsonRpcTransportHandler │    │  RestTransportHandler   │       │
+│    └───────────┬─────────────┘    └───────────┬─────────────┘       │
+│                │                              │                     │
+│                └──────────┬───────────────────┘                     │
+│                           │                                         │
+│    ┌──────────────────────▼──────────────────────┐                  │
+│    │           A2ARequestHandler                 │                  │
+│    │    (Business Logic - Framework Agnostic)    │                  │
+│    └─────────────────────────────────────────────┘                  │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+         ┌──────────────────────┼──────────────────────┐
+         │                      │                      │
+         ▼                      ▼                      ▼
+┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
+│  server/core    │   │ server/adapters │   │ server/express  │
+│ (Web Standard)  │   │ (Hono, Elysia,  │   │    (Original)   │
+│                 │   │  Fresh, etc.)   │   │                 │
+└─────────────────┘   └─────────────────┘   └─────────────────┘
+```
+
+### Import Paths
+
+```typescript
+// Core utilities (Logger, routes, streaming)
+import { 
+  ConsoleLogger, 
+  JsonLogger,
+  HTTP_STATUS,
+  REST_ROUTES,
+  AGENT_CARD_ROUTE,
+  processStream,
+} from '@drew-foxall/a2a-js-sdk/server/core';
+
+// Framework-specific adapters
+import { createHonoA2AApp } from '@drew-foxall/a2a-js-sdk/server/adapters/hono';
+import { createElysiaA2APlugin } from '@drew-foxall/a2a-js-sdk/server/adapters/elysia';
+import { createIttyA2ARoutes } from '@drew-foxall/a2a-js-sdk/server/adapters/itty-router';
+import { createFreshA2AHandler } from '@drew-foxall/a2a-js-sdk/server/adapters/fresh';
+import { createA2AFetchHandler } from '@drew-foxall/a2a-js-sdk/server/adapters/web-standard';
+import { createExpressA2ARouter } from '@drew-foxall/a2a-js-sdk/server/adapters/express';
+
+// Original Express implementation (still available)
+import { A2AExpressApp } from '@drew-foxall/a2a-js-sdk/server/express';
+
+// Original Hono implementation (still available)
+import { A2AHonoApp } from '@drew-foxall/a2a-js-sdk/server/hono';
+```
+
+### Core Module (`server/core`)
+
+The core module provides framework-agnostic utilities using web-standard APIs:
+
+| Export | Description |
+|--------|-------------|
+| **Logging** | |
+| `Logger` | Logger interface |
+| `ConsoleLogger` | Human-readable console output |
+| `JsonLogger` | Structured JSON logging for production |
+| `NoopLogger` | Silent logger for testing |
+| **Routes** | |
+| `REST_ROUTES` | Array of all A2A REST endpoint definitions |
+| `AGENT_CARD_ROUTE` | Agent card endpoint definition |
+| `JSON_RPC_ROUTE` | JSON-RPC endpoint definition |
+| `HTTP_STATUS` | Standard HTTP status codes |
+| **Route Utilities** | |
+| `toExpressPattern()` | Convert route pattern to Express format |
+| `toRegex()` | Convert route pattern to RegExp |
+| `extractParams()` | Extract path parameters from URL |
+| `matchesPattern()` | Check if URL matches a route pattern |
+| `withBasePath()` | Prepend base path to route |
+| **Streaming** | |
+| `processStream()` | Framework-agnostic stream processing |
+| `createSSEEvent()` | Create SSE data event |
+| `createSSEErrorEvent()` | Create SSE error event |
+| `createExpressStreamConsumer()` | Stream consumer for Express |
+| `createWebStreamConsumer()` | Stream consumer for ReadableStream |
+| **Handlers** | |
+| `createAgentCardHandler()` | Web-standard agent card handler |
+| `createJsonRpcHandler()` | Web-standard JSON-RPC handler |
+| `createRestHandler()` | Web-standard REST handler |
+
+### Adapters (`server/adapters`)
+
+Each adapter wraps the core handlers for a specific framework:
+
+| Adapter | Framework | Best For |
+|---------|-----------|----------|
+| `hono` | [Hono](https://hono.dev/) | Cloudflare Workers, Deno, Bun |
+| `elysia` | [Elysia](https://elysiajs.com/) | Bun-native with excellent TypeScript |
+| `itty-router` | [itty-router](https://itty.dev/) | Lightweight Cloudflare Workers |
+| `fresh` | [Fresh](https://fresh.deno.dev/) | Deno's web framework |
+| `web-standard` | Fetch API | Any runtime with Request/Response |
+| `express` | [Express](https://expressjs.com/) | Node.js traditional servers |
+
+### Example: Using Core with Adapters
+
+```typescript
+import { Hono } from 'hono';
+import { createHonoA2AApp } from '@drew-foxall/a2a-js-sdk/server/adapters/hono';
+import { JsonLogger } from '@drew-foxall/a2a-js-sdk/server/core';
+
+const app = new Hono();
+const a2a = createHonoA2AApp(requestHandler, {
+  logger: JsonLogger.create(),
+});
+
+app.route('/a2a', a2a);
+export default app;
+```
+
+### Benefits of This Architecture
+
+1. **Single Source of Truth**: Route definitions, HTTP status codes, and streaming logic are defined once in core
+2. **Consistent Behavior**: All adapters use the same underlying handlers
+3. **Smaller Bundles**: Import only what you need from core
+4. **Type Safety**: Strict TypeScript types throughout
+5. **Easy Testing**: Core handlers can be tested independently of frameworks
 
 -----
 

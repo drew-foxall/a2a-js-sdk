@@ -1,13 +1,11 @@
 import { Hono } from 'hono';
-import { AgentCard } from "../../types.js";
+import { AgentCard } from '../../types.js';
 
 export interface AgentCardHandlerOptions {
-    agentCardProvider: AgentCardProvider;
+  agentCardProvider: AgentCardProvider;
 }
 
-export type AgentCardProvider =
-    { getAgentCard(): Promise<AgentCard>; }
-    | (() => Promise<AgentCard>);
+export type AgentCardProvider = { getAgentCard(): Promise<AgentCard> } | (() => Promise<AgentCard>);
 
 /**
  * Creates Hono route to handle agent card requests.
@@ -18,22 +16,22 @@ export type AgentCardProvider =
  * app.route('/.well-known/agent-card.json', agentCardHandler({ agentCardProvider: async () => agentCard }));
  */
 export function agentCardHandler(options: AgentCardHandlerOptions): Hono {
-    const app = new Hono();
+  const app = new Hono();
 
-    const provider = typeof options.agentCardProvider === 'function'
-        ? options.agentCardProvider
-        : options.agentCardProvider.getAgentCard.bind(options.agentCardProvider);
+  const provider =
+    typeof options.agentCardProvider === 'function'
+      ? options.agentCardProvider
+      : options.agentCardProvider.getAgentCard.bind(options.agentCardProvider);
 
-    app.get('/', async (c) => {
-        try {
-            const agentCard = await provider();
-            return c.json(agentCard);
-        } catch (error: any) {
-            console.error("Error fetching agent card:", error);
-            return c.json({ error: "Failed to retrieve agent card" }, 500);
-        }
-    });
+  app.get('/', async (c) => {
+    try {
+      const agentCard = await provider();
+      return c.json(agentCard);
+    } catch (error: unknown) {
+      console.error('Error fetching agent card:', error);
+      return c.json({ error: 'Failed to retrieve agent card' }, 500);
+    }
+  });
 
-    return app;
+  return app;
 }
-
