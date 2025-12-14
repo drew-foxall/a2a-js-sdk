@@ -1,5 +1,6 @@
-# A2A JavaScript SDK
+# A2A JavaScript SDK with Hono Support
 
+[![npm version](https://badge.fury.io/js/@drew-foxall%2Fa2a-js-sdk.svg)](https://www.npmjs.com/package/@drew-foxall/a2a-js-sdk)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 <!-- markdownlint-disable no-inline-html -->
@@ -13,31 +14,99 @@
 
 <!-- markdownlint-enable no-inline-html -->
 
+## 🔱 Fork Notice
+
+> **This is a fork of the official [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js) repository.**
+
+### Why This Fork Exists
+
+This fork extends the original A2A JavaScript SDK with **Hono framework support**, providing developers with a choice between Express and Hono for building A2A agent servers.
+
+### ✨ What's New in This Fork
+
+- **🎯 Hono Adapter**: Full A2A protocol support for the [Hono](https://hono.dev/) framework
+- **⚡ Edge Runtime Support**: Native compatibility with Cloudflare Workers, Deno, and Bun (no Node.js compat mode needed!)
+- **🌐 Universal JavaScript**: Replaced `EventEmitter` with web-standard `EventTarget` API
+- **🚀 SSE Streaming**: Complete Server-Sent Events implementation for Hono
+- **✅ Comprehensive Tests**: 24 tests passing for Hono adapter
+- **🔌 Middleware Support**: Full middleware injection capabilities for both Express and Hono
+- **🧩 Extension Support**: Complete A2A extensions protocol support for both adapters
+- **📦 Easy Integration**: Identical API pattern as Express adapter for consistency
+- **🔄 Backward Compatible**: Works as a drop-in replacement for the original package
+- **📚 Documentation**: Includes working Hono sample agents with extensions
+
+### When to Use This Fork
+
+- ✅ You want to deploy to **Cloudflare Workers** (native support, no `nodejs_compat` needed)
+- ✅ You want to use **Hono** instead of Express
+- ✅ You need **edge runtime compatibility** (Cloudflare Workers, Deno, Bun)
+- ✅ You want **browser compatibility** for universal JavaScript applications
+- ✅ You want a **lightweight** alternative to Express
+- ✅ You still want all the Express functionality (both adapters included!)
+
+### Feature Comparison
+
+| Feature | Express Adapter | Hono Adapter |
+|---------|-----------------|--------------|
+| Core A2A Protocol | ✅ | ✅ |
+| SSE Streaming | ✅ | ✅ |
+| Middleware Injection | ✅ | ✅ |
+| Extension Support (`X-A2A-Extensions`) | ✅ | ✅ |
+| JSON-RPC Error Handling | ✅ | ✅ |
+| Custom Agent Card Paths | ✅ | ✅ |
+| Base URL Configuration | ✅ | ✅ |
+| Test Coverage | 20 tests | 24 tests |
+| Edge Runtime Support | ✅ (Node.js 15+) | ✅ (All modern runtimes) |
+| Cloudflare Workers | ⚠️ via nodejs_compat | ✅ Native |
+| Browser Support | ✅ | ✅ |
+
+**Result:** 🎯 **Complete Feature Parity** + **Universal JavaScript** (EventTarget-based)!
+
+### Original Repository
+
+For the official version (Express-only), see: [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js)
+
+---
+
 ## Installation
 
-You can install the A2A SDK using `npm`.
+### Install from PNPM/NPM/Bun/Yarn
 
 ```bash
-npm install @a2a-js/sdk
+npm install @drew-foxall/a2a-js-sdk
+# or
+pnpm add @drew-foxall/a2a-js-sdk
+# or
+yarn add @drew-foxall/a2a-js-sdk
 ```
 
-### For Server Usage
+### For Server Usage with Express
 
-If you plan to use the Express integration (imports from `@a2a-js/sdk/server/express`) for A2A server, you'll also need to install Express as it's a peer dependency:
+If you plan to use the Express adapter (`A2AExpressApp`), you'll also need to install Express as it's a peer dependency:
 
 ```bash
 npm install express
 ```
 
-You can also find some samples [here](https://github.com/a2aproject/a2a-js/tree/main/src/samples).
+### For Server Usage with Hono
+
+If you plan to use the Hono adapter (`A2AHonoApp`), you'll need to install Hono and a runtime adapter:
+
+```bash
+npm install hono @hono/node-server
+# or for other runtimes:
+# npm install hono  # Cloudflare Workers, Deno, Bun (no adapter needed)
+```
+
+You can also find JavaScript samples [here](https://github.com/google-a2a/a2a-samples/tree/main/samples/js).
 
 ---
 
 ## Quickstart
 
-This example shows how to create a simple "Hello World" agent server and a client to interact with it.
+This example shows how to create a simple "Hello World" agent server and a client to interact with it. Both **Express** and **Hono** examples are provided.
 
-### Server: Hello World Agent
+### Server: Hello World Agent (Express)
 
 The core of an A2A server is the `AgentExecutor`, which contains your agent's logic.
 
@@ -45,15 +114,15 @@ The core of an A2A server is the `AgentExecutor`, which contains your agent's lo
 // server.ts
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { AgentCard, Message, AGENT_CARD_PATH } from '@a2a-js/sdk';
+import type { AgentCard, Message } from '@drew-foxall/a2a-js-sdk';
 import {
   AgentExecutor,
   RequestContext,
   ExecutionEventBus,
   DefaultRequestHandler,
   InMemoryTaskStore,
-} from '@a2a-js/sdk/server';
-import { agentCardHandler, jsonRpcHandler, restHandler, UserBuilder } from '@a2a-js/sdk/server/express';
+} from '@drew-foxall/a2a-js-sdk/server';
+import { A2AExpressApp } from '@drew-foxall/a2a-js-sdk/server/express';
 
 // 1. Define your agent's identity card.
 const helloAgentCard: AgentCard = {
@@ -61,17 +130,13 @@ const helloAgentCard: AgentCard = {
   description: 'A simple agent that says hello.',
   protocolVersion: '0.3.0',
   version: '0.1.0',
-  url: 'http://localhost:4000/a2a/jsonrpc', // The public URL of your agent server
+  url: 'http://localhost:4000/', // The public URL of your agent server
   skills: [{ id: 'chat', name: 'Chat', description: 'Say hello', tags: ['chat'] }],
   capabilities: {
     pushNotifications: false,
   },
   defaultInputModes: ['text'],
   defaultOutputModes: ['text'],
-  additionalInterfaces: [
-    { url: 'http://localhost:4000/a2a/jsonrpc', transport: 'JSONRPC' }, // Default JSON-RPC transport
-    { url: 'http://localhost:4000/a2a/rest', transport: 'HTTP+JSON' }, // HTTP+JSON/REST transport
-  ],
 };
 
 // 2. Implement the agent's logic.
@@ -104,33 +169,96 @@ const requestHandler = new DefaultRequestHandler(
   agentExecutor
 );
 
-const app = express();
+const appBuilder = new A2AExpressApp(requestHandler);
+const expressApp = appBuilder.setupRoutes(express());
 
-app.use(`/${AGENT_CARD_PATH}`, agentCardHandler({ agentCardProvider: requestHandler }));
-app.use('/a2a/jsonrpc', jsonRpcHandler({ requestHandler, userBuilder: UserBuilder.noAuthentication }));
-app.use('/a2a/rest', restHandler({ requestHandler, userBuilder: UserBuilder.noAuthentication }));
-
-app.listen(4000, () => {
+expressApp.listen(4000, () => {
   console.log(`🚀 Server started on http://localhost:4000`);
 });
 ```
 
+### Server: Hello World Agent (Hono) 🆕
+
+The same agent logic works with Hono - just swap the adapter!
+
+```typescript
+// server-hono.ts
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { v4 as uuidv4 } from "uuid";
+import type { AgentCard, Message } from "@drew-foxall/a2a-js-sdk";
+import {
+  AgentExecutor,
+  RequestContext,
+  ExecutionEventBus,
+  DefaultRequestHandler,
+  InMemoryTaskStore,
+} from "@drew-foxall/a2a-js-sdk/server";
+import { A2AHonoApp } from "@drew-foxall/a2a-js-sdk/server/hono";
+
+// 1. Define your agent's identity card (same as Express).
+const helloAgentCard: AgentCard = {
+  name: "Hello Agent",
+  description: "A simple agent that says hello.",
+  protocolVersion: "0.3.0",
+  version: "0.1.0",
+  url: "http://localhost:4000/",
+  skills: [ { id: "chat", name: "Chat", description: "Say hello", tags: ["chat"] } ],
+};
+
+// 2. Implement the agent's logic (same as Express).
+class HelloExecutor implements AgentExecutor {
+  async execute(
+    requestContext: RequestContext,
+    eventBus: ExecutionEventBus
+  ): Promise<void> {
+    const responseMessage: Message = {
+      kind: "message",
+      messageId: uuidv4(),
+      role: "agent",
+      parts: [{ kind: "text", text: "Hello from Hono!" }],
+      contextId: requestContext.contextId,
+    };
+    eventBus.publish(responseMessage);
+    eventBus.finished();
+  }
+  
+  cancelTask = async (): Promise<void> => {};
+}
+
+// 3. Set up and run the server with Hono.
+const agentExecutor = new HelloExecutor();
+const requestHandler = new DefaultRequestHandler(
+  helloAgentCard,
+  new InMemoryTaskStore(),
+  agentExecutor
+);
+
+const honoApp = new Hono();
+const appBuilder = new A2AHonoApp(requestHandler);
+appBuilder.setupRoutes(honoApp);
+
+serve({
+  fetch: honoApp.fetch,
+  port: 4000,
+});
+
+console.log(`🚀 Hono server started on http://localhost:4000`);
+```
+
 ### Client: Sending a Message
 
-The [`ClientFactory`](src/client/factory.ts) makes it easy to communicate with any A2A-compliant agent.
+The `A2AClient` makes it easy to communicate with any A2A-compliant agent (works with both Express and Hono servers).
 
 ```typescript
 // client.ts
-import { ClientFactory } from '@a2a-js/sdk/client';
-import { Message, MessageSendParams, SendMessageSuccessResponse } from '@a2a-js/sdk';
+import { A2AClient, SendMessageSuccessResponse } from '@drew-foxall/a2a-js-sdk/client';
+import { Message, MessageSendParams } from '@drew-foxall/a2a-js-sdk';
 import { v4 as uuidv4 } from 'uuid';
 
 async function run() {
-  const factory = new ClientFactory();
-
-  // createFromUrl accepts baseUrl and optional path,
-  // (the default path is /.well-known/agent-card.json)
-  const client = await factory.createFromUrl('http://localhost:4000');
+  // Create a client pointing to the agent's Agent Card URL.
+  const client = await A2AClient.fromCardUrl('http://localhost:4000/.well-known/agent-card.json');
 
   const sendParams: MessageSendParams = {
     message: {
@@ -141,12 +269,13 @@ async function run() {
     },
   };
 
-  try {
-    const response = await client.sendMessage(sendParams);
-    const result = response as Message;
+  const response = await client.sendMessage(sendParams);
+
+  if ('error' in response) {
+    console.error('Error:', response.error.message);
+  } else {
+    const result = (response as SendMessageSuccessResponse).result as Message;
     console.log('Agent response:', result.parts[0].text); // "Hello, world!"
-  } catch(e) {
-    console.error('Error:', e);
   }
 }
 
@@ -165,7 +294,7 @@ This agent creates a task, attaches a file artifact to it, and marks it as compl
 
 ```typescript
 // server.ts
-import { Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import { Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from '@drew-foxall/a2a-js-sdk';
 // ... other imports from the quickstart server ...
 
 class TaskExecutor implements AgentExecutor {
@@ -222,25 +351,25 @@ The client sends a message and receives a `Task` object as the result.
 
 ```typescript
 // client.ts
-import { ClientFactory } from '@a2a-js/sdk/client';
-import { Message, MessageSendParams, SendMessageSuccessResponse, Task } from '@a2a-js/sdk';
+import { A2AClient, SendMessageSuccessResponse } from '@drew-foxall/a2a-js-sdk/client';
+import { Message, MessageSendParams, Task } from '@drew-foxall/a2a-js-sdk';
 // ... other imports ...
 
-const factory = new ClientFactory();
+const client = await A2AClient.fromCardUrl('http://localhost:4000/.well-known/agent-card.json');
 
-// createFromUrl accepts baseUrl and optional path,
-// (the default path is /.well-known/agent-card.json)
-const client = await factory.createFromUrl('http://localhost:4000');
+const response = await client.sendMessage({
+  message: {
+    messageId: uuidv4(),
+    role: 'user',
+    parts: [{ kind: 'text', text: 'Do something.' }],
+    kind: 'message',
+  },
+});
 
-try {
-  const result = await client.sendMessage({
-    message: {
-      messageId: uuidv4(),
-      role: 'user',
-      parts: [{ kind: 'text', text: 'Do something.' }],
-      kind: 'message',
-    },
-  });
+if ('error' in response) {
+  console.error('Error:', response.error.message);
+} else {
+  const result = (response as SendMessageSuccessResponse).result;
 
   // Check if the agent's response is a Task or a direct Message.
   if (result.kind === 'task') {
@@ -255,8 +384,6 @@ try {
     const message = result as Message;
     console.log('Received direct message:', message.parts[0].text);
   }
-} catch (e) {
-  console.error('Error:', e);
 }
 ```
 
@@ -264,49 +391,38 @@ try {
 
 ## Client Customization
 
-Client can be customized via [`CallInterceptor`'s](src/client/interceptors.ts) which is a recommended way as it's transport-agnostic.
-
-Common use cases include:
+You can provide a custom `fetch` implementation to the `A2AClient` to modify its HTTP request behavior. Common use cases include:
 
 - **Request Interception**: Log outgoing requests or collect metrics.
 - **Header Injection**: Add custom headers for authentication, tracing, or routing.
-- **A2A Extensions**: Modifying payloads to include protocol extension data.
+- **Retry Mechanisms**: Implement custom logic for retrying failed requests.
 
 ### Example: Injecting a Custom Header
 
-This example defines a `CallInterceptor` to update `serviceParameters` which are passed as HTTP headers.
+This example creates a `fetch` wrapper that adds a unique `X-Request-ID` to every outgoing request.
 
 ```typescript
+import { A2AClient } from '@drew-foxall/a2a-js-sdk/client';
 import { v4 as uuidv4 } from 'uuid';
-import { AfterArgs, BeforeArgs, CallInterceptor, ClientFactory, ClientFactoryOptions } from '@a2a-js/sdk/client';
 
-// 1. Define an interceptor
-class RequestIdInterceptor implements CallInterceptor {
-  before(args: BeforeArgs): Promise<void> {
-    args.options = {
-      ...args.options,
-      serviceParameters: {
-        ...args.options.serviceParameters,
-        ['X-Request-ID']: uuidv4(),
-      },
-    };
-    return Promise.resolve();
-  }
+// 1. Create a wrapper around the global fetch function.
+const fetchWithCustomHeader: typeof fetch = async (url, init) => {
+  const headers = new Headers(init?.headers);
+  headers.set('X-Request-ID', uuidv4());
 
-  after(): Promise<void> {
-    return Promise.resolve();
-  }
-}
+  const newInit = { ...init, headers };
 
-// 2. Register the interceptor in the client factory
-const factory = new ClientFactory(ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
-  clientConfig: {
-    interceptors: [new RequestIdInterceptor()]
-  }
-}))
-const client = await factory.createFromAgentCardUrl('http://localhost:4000');
+  console.log(`Sending request to ${url} with X-Request-ID: ${headers.get('X-Request-ID')}`);
 
-// Now, all requests made by clients created by this factory will include the X-Request-ID header.
+  return fetch(url, newInit);
+};
+
+// 2. Provide the custom fetch implementation to the client.
+const client = await A2AClient.fromCardUrl('http://localhost:4000/.well-known/agent-card.json', {
+  fetchImpl: fetchWithCustomHeader,
+});
+
+// Now, all requests made by this client instance will include the X-Request-ID header.
 await client.sendMessage({
   message: {
     messageId: uuidv4(),
@@ -319,33 +435,33 @@ await client.sendMessage({
 
 ### Example: Specifying a Timeout
 
-Each client method can be configured with an optional `signal` field.
+This example creates a `fetch` wrapper that sets a timeout for every outgoing request.
 
 ```typescript
-import { ClientFactory } from '@a2a-js/sdk/client';
+import { A2AClient } from '@drew-foxall/a2a-js-sdk/client';
 
-const factory = new ClientFactory();
+// 1. Create a wrapper around the global fetch function.
+const fetchWithTimeout: typeof fetch = async (url, init) => {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(5000) });
+};
 
-// createFromUrl accepts baseUrl and optional path,
-// (the default path is /.well-known/agent-card.json)
-const client = await factory.createFromUrl('http://localhost:4000');
+// 2. Provide the custom fetch implementation to the client.
+const client = await A2AClient.fromCardUrl('http://localhost:4000/.well-known/agent-card.json', {
+  fetchImpl: fetchWithTimeout,
+});
 
-await client.sendMessage(
-  {
-    message: {
-      messageId: uuidv4(),
-      role: 'user',
-      parts: [{ kind: 'text', text: 'A long-running message.' }],
-      kind: 'message',
-    },
+// Now, all requests made by this client instance will have a configured timeout.
+await client.sendMessage({
+  message: {
+    messageId: uuidv4(),
+    role: 'user',
+    parts: [{ kind: 'text', text: 'A message requiring custom headers.' }],
+    kind: 'message',
   },
-  {
-    signal: AbortSignal.timeout(5000), // 5 seconds timeout
-  }
-);
+});
 ```
 
-### Customizing Transports: Using the Provided `AuthenticationHandler`
+### Using the Provided `AuthenticationHandler`
 
 For advanced authentication scenarios, the SDK includes a higher-order function `createAuthenticatingFetchWithRetry` and an `AuthenticationHandler` interface. This utility automatically adds authorization headers and can retry requests that fail with authentication errors (e.g., 401 Unauthorized).
 
@@ -353,12 +469,10 @@ Here's how to use it to manage a Bearer token:
 
 ```typescript
 import {
-  ClientFactory,
-  ClientFactoryOptions,
-  JsonRpcTransportFactory,
+  A2AClient,
   AuthenticationHandler,
   createAuthenticatingFetchWithRetry,
-} from '@a2a-js/sdk/client';
+} from '@drew-foxall/a2a-js-sdk/client';
 
 // A simple token provider that simulates fetching a new token.
 const tokenProvider = {
@@ -395,15 +509,10 @@ const handler: AuthenticationHandler = {
 // 2. Create the authenticated fetch function.
 const authFetch = createAuthenticatingFetchWithRetry(fetch, handler);
 
-// 3. Inject new fetch implementation into a client factory.
-const factory = new ClientFactory(ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
-  transports: [
-    new JsonRpcTransportFactory({ fetchImpl: authFetch })
-  ]
-}))
-
-// 4. Clients created from the factory are going to have custom fetch attached.
-const client = await factory.createFromUrl('http://localhost:4000');
+// 3. Initialize the client with the new fetch implementation.
+const client = await A2AClient.fromCardUrl('http://localhost:4000/.well-known/agent-card.json', {
+  fetchImpl: authFetch,
+});
 ```
 
 ---
@@ -477,16 +586,12 @@ The `sendMessageStream` method returns an `AsyncGenerator` that yields events as
 
 ```typescript
 // client.ts
-import { ClientFactory } from '@a2a-js/sdk/client';
-import { MessageSendParams } from '@a2a-js/sdk';
+import { A2AClient } from '@drew-foxall/a2a-js-sdk/client';
+import { MessageSendParams } from '@drew-foxall/a2a-js-sdk';
 import { v4 as uuidv4 } from 'uuid';
 // ... other imports ...
 
-const factory = new ClientFactory();
-
-// createFromUrl accepts baseUrl and optional path,
-// (the default path is /.well-known/agent-card.json)
-const client = await factory.createFromUrl('http://localhost:4000');
+const client = await A2AClient.fromCardUrl('http://localhost:4000/.well-known/agent-card.json');
 
 async function streamTask() {
   const streamParams: MessageSendParams = {
@@ -519,6 +624,207 @@ async function streamTask() {
 await streamTask();
 ```
 
+-----
+
+## Middleware Support
+
+Both Express and Hono adapters support custom middleware injection, allowing you to add authentication, logging, rate limiting, or any other cross-cutting concerns.
+
+### Express Middleware Example
+
+```typescript
+import express from "express";
+import { A2AExpressApp, DefaultRequestHandler } from "@drew-foxall/a2a-js-sdk/server/express";
+
+// Define custom middleware
+const loggingMiddleware = (req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+};
+
+const authMiddleware = (req, res, next) => {
+  const token = req.headers['authorization'];
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+// Apply middlewares to A2A routes
+const appBuilder = new A2AExpressApp(requestHandler);
+const app = express();
+appBuilder.setupRoutes(
+  app,
+  "/a2a",  // base URL
+  [loggingMiddleware, authMiddleware]  // middlewares array
+);
+
+app.listen(4000);
+```
+
+### Hono Middleware Example
+
+```typescript
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { A2AHonoApp, DefaultRequestHandler } from "@drew-foxall/a2a-js-sdk/server/hono";
+
+// Define custom middleware
+const loggingMiddleware = async (c, next) => {
+  console.log(`${c.req.method} ${c.req.path}`);
+  await next();
+};
+
+const authMiddleware = async (c, next) => {
+  const token = c.req.header('authorization');
+  if (!token) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  await next();
+};
+
+// Apply middlewares to A2A routes
+const appBuilder = new A2AHonoApp(requestHandler);
+const app = new Hono();
+appBuilder.setupRoutes(
+  app,
+  "/a2a",  // base URL
+  [loggingMiddleware, authMiddleware]  // middlewares array
+);
+
+serve({ fetch: app.fetch, port: 4000 });
+```
+
+### API Signature
+
+Both adapters follow the same pattern:
+
+```typescript
+setupRoutes(
+  app: Express | Hono,
+  baseUrl?: string,
+  middlewares?: MiddlewareHandler[],
+  agentCardPath?: string
+)
+```
+
+-----
+
+## ⚡ Edge Runtime Compatibility
+
+This SDK uses **web-standard APIs** (`EventTarget` instead of Node.js `EventEmitter`), making it truly universal and compatible with modern JavaScript runtimes.
+
+### Supported Runtimes
+
+| Runtime | Status | Notes |
+|---------|--------|-------|
+| **Cloudflare Workers** | ✅ Native | No `nodejs_compat` flag needed |
+| **Deno** | ✅ Native | No `npm:` shims required |
+| **Bun** | ✅ Native | Full web API support |
+| **Node.js 15+** | ✅ Native | EventTarget built-in |
+| **Browsers** | ✅ Native | True universal JavaScript |
+| **Node.js 14** | ❌ | EventTarget not available (EOL) |
+
+### Cloudflare Workers Example
+
+Deploy A2A agents to the edge with **zero Node.js compatibility layers**:
+
+```typescript
+// worker.ts - No special configuration needed!
+import { Hono } from "hono";
+import { A2AHonoApp, DefaultRequestHandler } from "@drew-foxall/a2a-js-sdk/server/hono";
+import type { AgentCard } from "@drew-foxall/a2a-js-sdk";
+
+const agentCard: AgentCard = {
+  name: "Edge Agent",
+  description: "Running natively on Cloudflare Workers",
+  // ... rest of agent card
+};
+
+const requestHandler = new DefaultRequestHandler(/* your executor */);
+const appBuilder = new A2AHonoApp(requestHandler);
+const app = new Hono();
+appBuilder.setupRoutes(app);
+
+export default app;
+```
+
+```toml
+# wrangler.toml - No nodejs_compat needed! 🎉
+name = "a2a-edge-agent"
+main = "worker.ts"
+compatibility_date = "2024-01-01"
+# That's it! No compatibility flags required.
+```
+
+### Why This Matters
+
+**Before (Node.js EventEmitter):**
+- ❌ Required `nodejs_compat` flag in Cloudflare Workers
+- ❌ Increased cold start time
+- ❌ Limited browser compatibility
+- ❌ Deno required npm: protocol
+
+**After (Web-Standard EventTarget):**
+- ✅ Native edge runtime support
+- ✅ Faster cold starts
+- ✅ True universal JavaScript
+- ✅ Zero polyfills or shims needed
+
+### Technical Details
+
+The SDK's internal event system uses `EventTarget` and `CustomEvent` APIs:
+
+```typescript
+// Publishing events
+eventBus.publish(event);  // Uses dispatchEvent(new CustomEvent())
+
+// Subscribing to events  
+eventBus.on('event', handler);  // Uses addEventListener()
+```
+
+For more details, see [`EVENTTARGET_MIGRATION.md`](EVENTTARGET_MIGRATION.md).
+
+-----
+
+## 📚 Examples Repository
+
+Comprehensive, production-ready examples using **AI SDK + Hono** are available in a separate repository:
+
+### 👉 [a2a-js-sdk-examples](https://github.com/drew-foxall/a2a-js-sdk-examples)
+
+**Available Examples:**
+
+| Agent | Description | Features |
+|-------|-------------|----------|
+| **🎬 Movie Info Agent** | TMDB API integration for movie queries | Conversation history, tool calling, state management |
+| **💻 Coder Agent** | AI-powered code generation | Streaming responses, multi-file artifacts, markdown parsing |
+| **✍️ Content Editor Agent** | Professional content editing | Proof-reading, polishing, content improvement |
+
+### Why AI SDK?
+
+These examples use [Vercel AI SDK](https://sdk.vercel.ai) instead of Genkit, providing:
+
+- **Provider Agnostic**: Works with OpenAI, Anthropic, Google, and more
+- **Better TypeScript Support**: Full type safety and modern APIs
+- **Native Streaming**: Built-in streaming with proper backpressure
+- **Smaller Bundle**: Lightweight with no unnecessary dependencies
+
+### Feature Parity
+
+All examples achieve **100% feature parity** with the original [a2a-samples](https://github.com/a2aproject/a2a-samples) Genkit implementations:
+
+- ✅ Conversation history management
+- ✅ Tool calling and function execution
+- ✅ Streaming responses with SSE
+- ✅ Multi-file artifact generation
+- ✅ State parsing (`COMPLETED`, `AWAITING_USER_INPUT`)
+- ✅ Goal support and task management
+
+Each example includes comprehensive documentation, environment setup guides, and testing instructions.
+
+-----
+
 ## Handling Task Cancellation
 
 To support user-initiated cancellations, you must implement the `cancelTask` method in your **`AgentExecutor`**. The executor is responsible for gracefully stopping the ongoing work and publishing a final `canceled` status event.
@@ -536,7 +842,7 @@ import {
   RequestContext,
   ExecutionEventBus,
   TaskStatusUpdateEvent,
-} from '@a2a-js/sdk/server';
+} from '@drew-foxall/a2a-js-sdk/server';
 // ... other imports ...
 
 class CancellableExecutor implements AgentExecutor {
@@ -635,7 +941,7 @@ import {
   DefaultRequestHandler,
   InMemoryPushNotificationStore,
   DefaultPushNotificationSender,
-} from '@a2a-js/sdk/server';
+} from '@drew-foxall/a2a-js-sdk/server';
 
 // Optional: Custom push notification store and sender
 const pushNotificationStore = new InMemoryPushNotificationStore();
@@ -706,10 +1012,56 @@ app.post('/webhook/task-updates', (req, res) => {
 });
 ```
 
+## Fork Maintenance
+
+### Staying in Sync with Upstream
+
+This fork is maintained to stay current with the official [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js) repository:
+
+```bash
+# Add upstream remote (one time)
+git remote add upstream https://github.com/a2aproject/a2a-js.git
+
+# Fetch and merge upstream changes
+git fetch upstream
+git merge upstream/main
+
+# Push updates to this fork
+git push origin main
+```
+
+### Version Strategy
+
+This fork maintains the **same version number** as the upstream repository to facilitate easy merging of upstream changes. Hono-specific features are documented in the release notes but don't increment the version separately.
+
+### Reporting Issues
+
+- **For Hono adapter issues**: Please open an issue in [this repository](https://github.com/drew-foxall/a2a-js-sdk/issues)
+- **For core A2A protocol issues**: Please report to the [upstream repository](https://github.com/a2aproject/a2a-js/issues)
+
+### Future Plans
+
+- 🔄 Continuously merge upstream improvements
+- 📦 Potentially contribute Hono adapter back to upstream
+- 🚀 Add more edge runtime examples (Cloudflare Workers, Deno Deploy)
+- 📚 Expand documentation for Hono-specific use cases
+
 ## License
 
 This project is licensed under the terms of the [Apache 2.0 License](https://raw.githubusercontent.com/google-a2a/a2a-python/refs/heads/main/LICENSE).
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/google-a2a/a2a-js/blob/main/CONTRIBUTING.md) for contribution guidelines.
+### Contributing to This Fork
+
+Contributions are welcome! Please open an issue or pull request for:
+- Improvements to the Hono adapter
+- Bug fixes
+- Documentation enhancements
+- Additional examples
+
+### Contributing to Upstream
+
+For improvements to the core A2A protocol or Express adapter, please contribute to the [official repository](https://github.com/a2aproject/a2a-js).
+
+See [CONTRIBUTING.md](https://github.com/google-a2a/a2a-js/blob/main/CONTRIBUTING.md) for general contribution guidelines.
