@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@drew-foxall%2Fa2a-js-sdk.svg)](https://www.npmjs.com/package/@drew-foxall/a2a-js-sdk)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Upstream](https://img.shields.io/badge/upstream-a2aproject%2Fa2a--js%20v0.3.5-blue)](https://github.com/a2aproject/a2a-js)
+[![Upstream](https://img.shields.io/badge/upstream-a2aproject%2Fa2a--js%20v0.3.6-blue)](https://github.com/a2aproject/a2a-js)
 
 <!-- markdownlint-disable no-inline-html -->
 
@@ -15,7 +15,7 @@
 
 <!-- markdownlint-enable no-inline-html -->
 
-> **Fork of [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js)** — Tracks upstream v0.3.5 with added Hono, edge runtime, and multi-framework support.
+> **Fork of [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js)** — Tracks upstream v0.3.6 with added multi-framework and edge runtime support.
 
 ## ✨ Features
 
@@ -105,7 +105,7 @@ export class HelloExecutor implements AgentExecutor {
 
 ### Express Server (Node.js - Original)
 
-The original Express implementation. Best for traditional Node.js servers.
+The original Express implementation from upstream. Best for traditional Node.js servers.
 
 ```typescript
 // server-express.ts
@@ -125,11 +125,26 @@ const requestHandler = new DefaultRequestHandler(
 
 const app = express();
 const a2aApp = new A2AExpressApp(requestHandler);
-a2aApp.setupRoutes(app);
+
+// Setup routes with optional base path and middleware
+a2aApp.setupRoutes(app, '/a2a', [/* middlewares */]);
 
 app.listen(4000, () => {
   console.log('🚀 Express A2A server running on http://localhost:4000');
 });
+```
+
+**Options:**
+
+```typescript
+// With custom user extractor for authentication
+const a2aApp = new A2AExpressApp(requestHandler, async (req) => {
+  // Extract user from request (e.g., from JWT token)
+  return req.user ?? new UnauthenticatedUser();
+});
+
+// Setup with REST API enabled (in addition to JSON-RPC)
+a2aApp.setupRoutes(app, '/a2a', [], '.well-known/agent-card.json');
 ```
 
 ---
@@ -155,10 +170,30 @@ const requestHandler = new DefaultRequestHandler(
 );
 
 const app = new Hono();
-const a2aApp = new A2AHonoApp(requestHandler);
+const a2aApp = new A2AHonoApp(requestHandler, {
+  enableRest: true,           // Enable REST API endpoints
+  logger: ConsoleLogger.create(),
+});
 a2aApp.setupRoutes(app);
 
 export default app;
+```
+
+**With Authentication:**
+
+```typescript
+import { A2AHonoApp, UserBuilder } from '@drew-foxall/a2a-js-sdk/server/hono';
+
+const userBuilder: UserBuilder = async (request) => {
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  if (token) {
+    const user = await validateToken(token);
+    return user;
+  }
+  return new UnauthenticatedUser();
+};
+
+const a2aApp = new A2AHonoApp(requestHandler, { userBuilder });
 ```
 
 **Deploy to Cloudflare Workers:**
@@ -172,6 +207,89 @@ compatibility_date = "2024-01-01"
 
 ```bash
 wrangler deploy
+```
+
+---
+
+### Elysia Server (Bun)
+
+Best for Bun-native applications with excellent TypeScript support.
+
+```typescript
+// server-elysia.ts
+import { Elysia } from 'elysia';
+import { DefaultRequestHandler, InMemoryTaskStore } from '@drew-foxall/a2a-js-sdk/server';
+import { A2AElysiaApp } from '@drew-foxall/a2a-js-sdk/server/elysia';
+import { helloAgentCard, HelloExecutor } from './shared/agent';
+
+const requestHandler = new DefaultRequestHandler(
+  helloAgentCard,
+  new InMemoryTaskStore(),
+  new HelloExecutor()
+);
+
+const a2aApp = new A2AElysiaApp(requestHandler, { enableRest: true });
+const routes = a2aApp.getRoutes('/a2a');
+
+const app = new Elysia();
+routes.forEach(route => {
+  app[route.method](route.path, route.handler);
+});
+
+app.listen(4000);
+```
+
+---
+
+### itty-router (Cloudflare Workers - Lightweight)
+
+Best for minimal Cloudflare Workers with the smallest bundle size.
+
+```typescript
+// worker.ts
+import { Router } from 'itty-router';
+import { DefaultRequestHandler, InMemoryTaskStore } from '@drew-foxall/a2a-js-sdk/server';
+import { A2AIttyRouterApp } from '@drew-foxall/a2a-js-sdk/server/itty-router';
+import { helloAgentCard, HelloExecutor } from './shared/agent';
+
+const requestHandler = new DefaultRequestHandler(
+  helloAgentCard,
+  new InMemoryTaskStore(),
+  new HelloExecutor()
+);
+
+const a2aApp = new A2AIttyRouterApp(requestHandler, { enableRest: true });
+const routes = a2aApp.getRoutes('/a2a');
+
+const router = Router();
+routes.forEach(route => {
+  router[route.method.toLowerCase()](route.pattern, route.handler);
+});
+
+export default { fetch: router.handle };
+```
+
+---
+
+### Fresh (Deno)
+
+Best for Deno's web framework with file-based routing.
+
+```typescript
+// routes/a2a/[...path].ts
+import { DefaultRequestHandler, InMemoryTaskStore } from '@drew-foxall/a2a-js-sdk/server';
+import { A2AFreshApp } from '@drew-foxall/a2a-js-sdk/server/fresh';
+import { helloAgentCard, HelloExecutor } from '../../shared/agent.ts';
+
+const requestHandler = new DefaultRequestHandler(
+  helloAgentCard,
+  new InMemoryTaskStore(),
+  new HelloExecutor()
+);
+
+const a2aApp = new A2AFreshApp(requestHandler, { enableRest: true });
+
+export const handler = a2aApp.createHandlers('/a2a');
 ```
 
 ---
@@ -355,7 +473,7 @@ This fork tracks the official [a2aproject/a2a-js](https://github.com/a2aproject/
 
 | This Fork | Upstream |
 |-----------|----------|
-| v0.4.0 | v0.3.5 |
+| v0.4.0 | v0.3.6 |
 
 ### Staying in Sync
 

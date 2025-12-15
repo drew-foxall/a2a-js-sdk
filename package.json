@@ -76,9 +76,6 @@
     "README.md"
   ],
   "devDependencies": {
-    "@ai-sdk/anthropic": "^1.0.10",
-    "@ai-sdk/google": "^1.0.10",
-    "@ai-sdk/openai": "^1.0.10",
     "@edge-runtime/vm": "5.0.0",
     "@eslint/js": "^9.39.1",
     "@genkit-ai/googleai": "^1.8.0",
