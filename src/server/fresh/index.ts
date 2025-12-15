@@ -1,28 +1,31 @@
 /**
- * Hono integration for the A2A Server library.
+ * Fresh integration for the A2A Server library.
  *
- * Provides A2AHonoApp for edge runtime applications using Hono.
- * Works with Cloudflare Workers, Deno, Bun, and Node.js.
+ * Provides A2AFreshApp for Deno's Fresh web framework.
+ * Fresh uses file-based routing, so this adapter provides handlers
+ * that can be used in route files.
  *
  * @example
  * ```ts
- * import { Hono } from 'hono';
- * import { A2AHonoApp } from '@drew-foxall/a2a-js-sdk/server/hono';
+ * // routes/a2a/[...path].ts
+ * import { A2AFreshApp } from '@drew-foxall/a2a-js-sdk/server/fresh';
  * import { DefaultRequestHandler, InMemoryTaskStore } from '@drew-foxall/a2a-js-sdk/server';
  *
  * const requestHandler = new DefaultRequestHandler(agentCard, new InMemoryTaskStore(), executor);
- * const a2aApp = new A2AHonoApp(requestHandler, { enableRest: true });
+ * const a2aApp = new A2AFreshApp(requestHandler, { enableRest: true });
  *
- * const app = new Hono();
- * a2aApp.setupRoutes(app, '/a2a');
- *
- * export default app;
+ * export const handler = a2aApp.createHandlers('/a2a');
  * ```
  */
 
 // Main App class and options
-export { A2AHonoApp } from './a2a_hono_app.js';
-export type { A2AHonoOptions } from './a2a_hono_app.js';
+export { A2AFreshApp } from './a2a_fresh_app.js';
+export type {
+  A2AFreshOptions,
+  FreshContext,
+  FreshHandler,
+  FreshHandlers,
+} from './a2a_fresh_app.js';
 
 // Framework-specific types
 export { UserBuilder } from '../web-standard/types.js';
@@ -43,9 +46,3 @@ export type { AgentCardProvider } from '../web-standard/types.js';
 // Re-export common types for convenience
 export { Logger, ConsoleLogger, JsonLogger, NoopLogger } from '../logging/logger.js';
 export type { LogLevel, LogContext } from '../logging/logger.js';
-
-// Hono-specific streaming utilities (for advanced use cases)
-export { createHonoStreamConsumer } from './streaming.js';
-export type { HonoSSEStream } from './streaming.js';
-export { processStream } from '../transports/streaming.js';
-export type { StreamConsumer, StreamResult } from '../transports/streaming.js';

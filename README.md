@@ -15,16 +15,16 @@
 
 <!-- markdownlint-enable no-inline-html -->
 
-> **Fork of [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js)** — Tracks upstream v0.3.5 with added Hono, edge runtime, and multi-framework adapter support.
+> **Fork of [a2aproject/a2a-js](https://github.com/a2aproject/a2a-js)** — Tracks upstream v0.3.5 with added Hono, edge runtime, and multi-framework support.
 
 ## ✨ Features
 
-- **🎯 Multi-Framework**: Express, Hono, Elysia, itty-router, Fresh, and Web Standard adapters
+- **🎯 Multi-Framework**: Express, Hono, Elysia, itty-router, Fresh, and Web Standard
 - **⚡ Edge Runtime Native**: Cloudflare Workers, Deno, Bun — no compatibility layers needed
 - **🌐 Universal JavaScript**: Built on web-standard APIs (`EventTarget`, `Request/Response`)
-- **🚀 SSE Streaming**: Full Server-Sent Events support across all adapters
+- **🚀 SSE Streaming**: Full Server-Sent Events support across all frameworks
 - **🔌 Pluggable Logger**: Console, JSON, or custom logging implementations
-- **📦 Modular Architecture**: Import only what you need from `server/core` and `server/adapters`
+- **📦 Modular Architecture**: Import only what you need from `server/core`
 - **🔄 Full A2A Protocol**: Complete implementation of the Agent2Agent specification
 
 ## Installation
@@ -42,13 +42,13 @@ yarn add @drew-foxall/a2a-js-sdk
 Install the framework you want to use:
 
 ```bash
-# For Express
+# For Express (Node.js)
 npm install express
 
-# For Hono
+# For Hono (Edge/Serverless)
 npm install hono
 
-# For Hono on Node.js
+# For Hono on Node.js (development)
 npm install hono @hono/node-server
 ```
 
@@ -56,22 +56,23 @@ npm install hono @hono/node-server
 
 ## Quick Start
 
-### Express Server
+The examples below show the same "Hello Agent" implemented for different environments.
+
+### Shared Agent Logic
+
+First, define your agent card and executor (shared across all implementations):
 
 ```typescript
-import express from 'express';
+// shared/agent.ts
 import { v4 as uuidv4 } from 'uuid';
 import type { AgentCard, Message } from '@drew-foxall/a2a-js-sdk';
 import {
   AgentExecutor,
   RequestContext,
   ExecutionEventBus,
-  DefaultRequestHandler,
-  InMemoryTaskStore,
 } from '@drew-foxall/a2a-js-sdk/server';
-import { A2AExpressApp } from '@drew-foxall/a2a-js-sdk/server/express';
 
-const agentCard: AgentCard = {
+export const helloAgentCard: AgentCard = {
   name: 'Hello Agent',
   description: 'A simple agent that says hello.',
   protocolVersion: '0.3.0',
@@ -83,43 +84,101 @@ const agentCard: AgentCard = {
   defaultOutputModes: ['text'],
 };
 
-class HelloExecutor implements AgentExecutor {
+export class HelloExecutor implements AgentExecutor {
   async execute(ctx: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
-    eventBus.publish({
+    const response: Message = {
       kind: 'message',
       messageId: uuidv4(),
       role: 'agent',
       parts: [{ kind: 'text', text: 'Hello, world!' }],
       contextId: ctx.contextId,
-    });
+    };
+    eventBus.publish(response);
     eventBus.finished();
   }
+  
   cancelTask = async (): Promise<void> => {};
 }
-
-const handler = new DefaultRequestHandler(agentCard, new InMemoryTaskStore(), new HelloExecutor());
-const app = new A2AExpressApp(handler).setupRoutes(express());
-
-app.listen(4000, () => console.log('🚀 Server running on http://localhost:4000'));
 ```
 
-### Hono Server
+---
+
+### Express Server (Node.js - Original)
+
+The original Express implementation. Best for traditional Node.js servers.
 
 ```typescript
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { A2AHonoApp } from '@drew-foxall/a2a-js-sdk/server/hono';
-// ... same agentCard and HelloExecutor as above ...
+// server-express.ts
+import express from 'express';
+import {
+  DefaultRequestHandler,
+  InMemoryTaskStore,
+} from '@drew-foxall/a2a-js-sdk/server';
+import { A2AExpressApp } from '@drew-foxall/a2a-js-sdk/server/express';
+import { helloAgentCard, HelloExecutor } from './shared/agent';
 
-const handler = new DefaultRequestHandler(agentCard, new InMemoryTaskStore(), new HelloExecutor());
-const app = new Hono();
-new A2AHonoApp(handler).setupRoutes(app);
+const requestHandler = new DefaultRequestHandler(
+  helloAgentCard,
+  new InMemoryTaskStore(),
+  new HelloExecutor()
+);
 
-serve({ fetch: app.fetch, port: 4000 });
-console.log('🚀 Hono server running on http://localhost:4000');
+const app = express();
+const a2aApp = new A2AExpressApp(requestHandler);
+a2aApp.setupRoutes(app);
+
+app.listen(4000, () => {
+  console.log('🚀 Express A2A server running on http://localhost:4000');
+});
 ```
 
+---
+
+### Hono Server (Edge/Serverless)
+
+Best for Cloudflare Workers, Vercel Edge Functions, Deno Deploy, and other edge environments.
+
+```typescript
+// worker.ts - Cloudflare Workers / Edge Runtime
+import { Hono } from 'hono';
+import {
+  DefaultRequestHandler,
+  InMemoryTaskStore,
+} from '@drew-foxall/a2a-js-sdk/server';
+import { A2AHonoApp } from '@drew-foxall/a2a-js-sdk/server/hono';
+import { helloAgentCard, HelloExecutor } from './shared/agent';
+
+const requestHandler = new DefaultRequestHandler(
+  helloAgentCard,
+  new InMemoryTaskStore(),
+  new HelloExecutor()
+);
+
+const app = new Hono();
+const a2aApp = new A2AHonoApp(requestHandler);
+a2aApp.setupRoutes(app);
+
+export default app;
+```
+
+**Deploy to Cloudflare Workers:**
+
+```toml
+# wrangler.toml - No nodejs_compat needed!
+name = "a2a-hello-agent"
+main = "worker.ts"
+compatibility_date = "2024-01-01"
+```
+
+```bash
+wrangler deploy
+```
+
+---
+
 ### Client
+
+The client works with any A2A server implementation:
 
 ```typescript
 import { A2AClient } from '@drew-foxall/a2a-js-sdk/client';
@@ -143,15 +202,15 @@ console.log('Response:', response);
 
 ## 🏗️ Architecture
 
-This SDK uses a layered architecture separating framework-agnostic logic from framework-specific adapters:
+This SDK uses a layered architecture separating framework-agnostic logic from framework-specific implementations:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Transport Layer                             │
-│   ┌──────────────────────┐    ┌──────────────────────┐          │
-│   │ JsonRpcTransportHandler│    │  RestTransportHandler │          │
-│   └──────────┬───────────┘    └──────────┬───────────┘          │
-│              └───────────┬───────────────┘                       │
+│                      Transport Layer                            │
+│   ┌────────────────────────┐    ┌──────────────────────┐        │
+│   │ JsonRpcTransportHandler│    │ RestTransportHandler │        │
+│   └──────────┬─────────────┘    └──────────┬───────────┘        │
+│              └─────────────┬───────────────┘                    │
 │                          ▼                                       │
 │         ┌────────────────────────────────┐                       │
 │         │      A2ARequestHandler         │                       │
@@ -162,33 +221,43 @@ This SDK uses a layered architecture separating framework-agnostic logic from fr
         ┌──────────────────┼──────────────────┐
         ▼                  ▼                  ▼
 ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
-│  server/core  │  │server/adapters│  │server/express │
-│(Web Standard) │  │(Hono, Elysia) │  │  (Original)   │
+│  server/core  │  │ server/hono   │  │server/express │
+│(Web Standard) │  │ server/elysia │  │  (Original)   │
+│               │  │    etc...     │  │               │
 └───────────────┘  └───────────────┘  └───────────────┘
 ```
 
 ### Import Paths
 
 ```typescript
-// Core utilities
+// Core utilities (logging, routes, streaming)
 import { 
   ConsoleLogger, JsonLogger, NoopLogger,
   HTTP_STATUS, REST_ROUTES, AGENT_CARD_ROUTE,
   processStream, createSSEEvent,
 } from '@drew-foxall/a2a-js-sdk/server/core';
 
-// Framework adapters
-import { createHonoA2AApp } from '@drew-foxall/a2a-js-sdk/server/adapters/hono';
-import { createElysiaA2APlugin } from '@drew-foxall/a2a-js-sdk/server/adapters/elysia';
-import { createIttyA2ARoutes } from '@drew-foxall/a2a-js-sdk/server/adapters/itty-router';
-import { createFreshA2AHandler } from '@drew-foxall/a2a-js-sdk/server/adapters/fresh';
-import { createA2AFetchHandler } from '@drew-foxall/a2a-js-sdk/server/adapters/web-standard';
-import { createExpressA2ARouter } from '@drew-foxall/a2a-js-sdk/server/adapters/express';
-
-// Original implementations (still available)
-import { A2AExpressApp } from '@drew-foxall/a2a-js-sdk/server/express';
+// Framework implementations
+import { A2AExpressApp } from '@drew-foxall/a2a-js-sdk/server/express';           // Original Express
+import { A2AExpressApp } from '@drew-foxall/a2a-js-sdk/server/express-adapter';   // Core-based Express
 import { A2AHonoApp } from '@drew-foxall/a2a-js-sdk/server/hono';
+import { A2AElysiaApp } from '@drew-foxall/a2a-js-sdk/server/elysia';
+import { A2AIttyRouterApp } from '@drew-foxall/a2a-js-sdk/server/itty-router';
+import { A2AFreshApp } from '@drew-foxall/a2a-js-sdk/server/fresh';
+import { A2AWebStandardApp } from '@drew-foxall/a2a-js-sdk/server/web-standard';
 ```
+
+### Available Frameworks
+
+| Framework | Import Path | Best For |
+|-----------|-------------|----------|
+| **Express** (Original) | `server/express` | Node.js servers (reference implementation) |
+| **Express** (Core-based) | `server/express-adapter` | Parity testing with edge implementations |
+| **Hono** | `server/hono` | Cloudflare Workers, Deno, Bun |
+| **Elysia** | `server/elysia` | Bun-native with excellent TypeScript |
+| **itty-router** | `server/itty-router` | Lightweight Cloudflare Workers |
+| **Fresh** | `server/fresh` | Deno's web framework |
+| **Web Standard** | `server/web-standard` | Any runtime with Request/Response |
 
 ---
 
@@ -199,30 +268,21 @@ This SDK uses web-standard APIs, making it compatible with all modern JavaScript
 | Runtime | Status | Notes |
 |---------|--------|-------|
 | **Cloudflare Workers** | ✅ Native | No `nodejs_compat` needed |
-| **Deno** | ✅ Native | No npm shims required |
+| **Vercel Edge Functions** | ✅ Native | Full support |
+| **Deno Deploy** | ✅ Native | No npm shims required |
 | **Bun** | ✅ Native | Full web API support |
 | **Node.js 15+** | ✅ Native | EventTarget built-in |
 | **Browsers** | ✅ Native | Universal JavaScript |
 
-### Cloudflare Workers Example
+### Why Edge?
 
-```typescript
-// worker.ts
-import { Hono } from 'hono';
-import { A2AHonoApp } from '@drew-foxall/a2a-js-sdk/server/hono';
-
-const app = new Hono();
-new A2AHonoApp(requestHandler).setupRoutes(app);
-
-export default app;
-```
-
-```toml
-# wrangler.toml - No nodejs_compat needed!
-name = "a2a-edge-agent"
-main = "worker.ts"
-compatibility_date = "2024-01-01"
-```
+| Traditional (Express) | Edge (Hono) |
+|-----------------------|-------------|
+| Runs on dedicated servers | Runs at the edge, close to users |
+| Cold starts in seconds | Cold starts in milliseconds |
+| Requires `nodejs_compat` on CF Workers | Native edge runtime support |
+| Full Node.js API access | Web-standard APIs only |
+| Best for complex backends | Best for low-latency agents |
 
 ---
 
@@ -246,14 +306,14 @@ for await (const event of stream) {
 
 ### Middleware Support
 
-Both Express and Hono adapters support middleware injection:
+All framework implementations support middleware:
 
 ```typescript
 // Express
-appBuilder.setupRoutes(app, '/a2a', [authMiddleware, loggingMiddleware]);
+a2aApp.setupRoutes(app, '/a2a', [authMiddleware, loggingMiddleware]);
 
 // Hono
-appBuilder.setupRoutes(app, '/a2a', [authMiddleware, loggingMiddleware]);
+a2aApp.setupRoutes(app, '/a2a', [authMiddleware, loggingMiddleware]);
 ```
 
 ### Push Notifications
@@ -275,11 +335,16 @@ const sendParams = {
 ### Custom Logging
 
 ```typescript
-import { JsonLogger } from '@drew-foxall/a2a-js-sdk/server/core';
+import { ConsoleLogger, JsonLogger, NoopLogger } from '@drew-foxall/a2a-js-sdk/server/core';
 
-const a2a = createHonoA2AApp(handler, {
-  logger: JsonLogger.create(),
-});
+// Human-readable for development
+const devLogger = ConsoleLogger.create('debug');
+
+// Structured JSON for production
+const prodLogger = JsonLogger.create();
+
+// Silent for testing
+const testLogger = NoopLogger.create();
 ```
 
 ---
@@ -316,5 +381,5 @@ git merge upstream/main
 
 Contributions are welcome! Please open an issue or pull request.
 
-- **Edge/Adapter improvements**: Submit PRs to this repository
+- **Edge/Framework improvements**: Submit PRs to this repository
 - **A2A Protocol issues**: Report to the [official repository](https://github.com/a2aproject/a2a-js)

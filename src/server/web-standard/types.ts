@@ -1,5 +1,5 @@
 /**
- * Core Types for A2A Edge Runtime
+ * Web-Standard Types for A2A Server
  *
  * These types define the web-standard interfaces used by all framework adapters.
  * They are based on the Web Fetch API which is available in all modern edge runtimes.
@@ -7,7 +7,7 @@
 
 import { AgentCard } from '../../types.js';
 import { User, UnauthenticatedUser } from '../authentication/user.js';
-import { Logger, ConsoleLogger } from './logger.js';
+import { Logger, ConsoleLogger } from '../logging/logger.js';
 
 /**
  * Web-standard Request type.
@@ -98,9 +98,28 @@ export function resolveAgentCardProvider(provider: AgentCardProvider): () => Pro
 // =============================================================================
 
 /**
- * Configuration options for A2A edge handlers.
+ * Base configuration options for all A2A server implementations.
+ * All framework-specific options should extend this interface.
+ *
+ * This ensures a consistent API across Express, Hono, Elysia, itty-router, Fresh, etc.
  */
-export interface EdgeHandlerOptions {
+export interface A2AServerOptions {
+  /** Logger instance for request/error logging */
+  logger?: Logger;
+  /** Function to build user from web-standard Request */
+  userBuilder?: UserBuilder;
+  /** Path for agent card endpoint (default: '/.well-known/agent-card.json') */
+  agentCardPath?: string;
+  /** Enable REST API endpoints (default: false) */
+  enableRest?: boolean;
+  /** Base path for REST endpoints (default: '/rest') */
+  restBasePath?: string;
+}
+
+/**
+ * Configuration options for A2A web-standard handlers.
+ */
+export interface WebHandlerOptions {
   /** Logger instance for request/error logging */
   logger?: Logger;
   /** Function to build user from request */
@@ -112,16 +131,16 @@ export interface EdgeHandlerOptions {
 /**
  * Resolved configuration with defaults applied.
  */
-export interface ResolvedEdgeHandlerOptions {
+export interface ResolvedWebHandlerOptions {
   logger: Logger;
   userBuilder: UserBuilder;
   basePath: string;
 }
 
 /**
- * Applies defaults to edge handler options.
+ * Applies defaults to web handler options.
  */
-export function resolveOptions(options?: EdgeHandlerOptions): ResolvedEdgeHandlerOptions {
+export function resolveOptions(options?: WebHandlerOptions): ResolvedWebHandlerOptions {
   return {
     logger: options?.logger ?? ConsoleLogger.create(),
     userBuilder: options?.userBuilder ?? defaultUserBuilder,
@@ -144,9 +163,13 @@ export interface Route {
   handler: RouteHandler;
 }
 
+// =============================================================================
+// SSE Types
+// =============================================================================
+
 /**
  * SSE (Server-Sent Events) event structure.
- * Used internally by the core handlers.
+ * Used internally by the web-standard handlers.
  */
 export interface SSEEvent {
   id?: string;
@@ -199,6 +222,14 @@ export const SSE_HEADERS: HeadersInit = {
 /**
  * Creates an SSE streaming response from an async generator.
  *
+ * This implementation provides:
+ * - Proper abort signal handling with event listener cleanup
+ * - Graceful stream termination on client disconnect
+ * - Error event emission before stream close
+ *
+ * For frameworks with native backpressure support (like Hono's streamSSE),
+ * use the `processStream` function with `createHonoStreamConsumer` instead.
+ *
  * @param generator - Async generator yielding events
  * @param options - Response options (headers, signal)
  * @returns Web-standard Response with SSE stream
@@ -209,31 +240,73 @@ export function createSSEResponse(
 ): WebResponse {
   const encoder = new TextEncoder();
 
+  // Track if we should stop iteration
+  let aborted = false;
+
   const stream = new ReadableStream({
     async start(controller) {
+      // Set up abort signal listener for proper cleanup
+      const abortHandler = () => {
+        aborted = true;
+      };
+
+      if (options?.signal) {
+        // Check if already aborted
+        if (options.signal.aborted) {
+          controller.close();
+          return;
+        }
+        options.signal.addEventListener('abort', abortHandler);
+      }
+
       try {
         for await (const event of generator) {
-          if (options?.signal?.aborted) {
+          // Check abort status before each write
+          if (aborted || options?.signal?.aborted) {
             break;
           }
-          controller.enqueue(encoder.encode(formatSSE(event)));
+
+          try {
+            controller.enqueue(encoder.encode(formatSSE(event)));
+          } catch {
+            // Controller may be closed if client disconnected
+            // This is expected behavior, not an error
+            break;
+          }
         }
       } catch (error) {
-        // Send error event before closing
-        const errorEvent: SSEEvent = {
-          id: String(Date.now()),
-          event: 'error',
-          data: JSON.stringify({
-            error: error instanceof Error ? error.message : 'Stream error',
-          }),
-        };
-        controller.enqueue(encoder.encode(formatSSE(errorEvent)));
+        // Only send error event if stream is still open
+        if (!aborted && !options?.signal?.aborted) {
+          try {
+            const errorEvent: SSEEvent = {
+              id: String(Date.now()),
+              event: 'error',
+              data: JSON.stringify({
+                error: error instanceof Error ? error.message : 'Stream error',
+              }),
+            };
+            controller.enqueue(encoder.encode(formatSSE(errorEvent)));
+          } catch {
+            // Controller may be closed, ignore
+          }
+        }
       } finally {
-        controller.close();
+        // Clean up abort listener
+        if (options?.signal) {
+          options.signal.removeEventListener('abort', abortHandler);
+        }
+
+        // Close the stream
+        try {
+          controller.close();
+        } catch {
+          // Controller may already be closed, ignore
+        }
       }
     },
     cancel() {
-      // Stream was cancelled by client
+      // Stream was cancelled by client (e.g., browser closed connection)
+      aborted = true;
     },
   });
 
@@ -245,6 +318,10 @@ export function createSSEResponse(
     },
   });
 }
+
+// =============================================================================
+// Response Utilities
+// =============================================================================
 
 /**
  * Creates a JSON response with the given status code.

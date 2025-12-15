@@ -39,35 +39,30 @@
       "import": "./dist/server/hono/index.js",
       "require": "./dist/server/hono/index.cjs"
     },
-    "./server/adapters/hono": {
-      "types": "./dist/server/adapters/hono.d.ts",
-      "import": "./dist/server/adapters/hono.js",
-      "require": "./dist/server/adapters/hono.cjs"
+    "./server/elysia": {
+      "types": "./dist/server/elysia/index.d.ts",
+      "import": "./dist/server/elysia/index.js",
+      "require": "./dist/server/elysia/index.cjs"
     },
-    "./server/adapters/elysia": {
-      "types": "./dist/server/adapters/elysia.d.ts",
-      "import": "./dist/server/adapters/elysia.js",
-      "require": "./dist/server/adapters/elysia.cjs"
+    "./server/itty-router": {
+      "types": "./dist/server/itty-router/index.d.ts",
+      "import": "./dist/server/itty-router/index.js",
+      "require": "./dist/server/itty-router/index.cjs"
     },
-    "./server/adapters/itty-router": {
-      "types": "./dist/server/adapters/itty-router.d.ts",
-      "import": "./dist/server/adapters/itty-router.js",
-      "require": "./dist/server/adapters/itty-router.cjs"
+    "./server/fresh": {
+      "types": "./dist/server/fresh/index.d.ts",
+      "import": "./dist/server/fresh/index.js",
+      "require": "./dist/server/fresh/index.cjs"
     },
-    "./server/adapters/fresh": {
-      "types": "./dist/server/adapters/fresh.d.ts",
-      "import": "./dist/server/adapters/fresh.js",
-      "require": "./dist/server/adapters/fresh.cjs"
+    "./server/web-standard": {
+      "types": "./dist/server/web-standard/index.d.ts",
+      "import": "./dist/server/web-standard/index.js",
+      "require": "./dist/server/web-standard/index.cjs"
     },
-    "./server/adapters/web-standard": {
-      "types": "./dist/server/adapters/web-standard.d.ts",
-      "import": "./dist/server/adapters/web-standard.js",
-      "require": "./dist/server/adapters/web-standard.cjs"
-    },
-    "./server/adapters/express": {
-      "types": "./dist/server/adapters/express.d.ts",
-      "import": "./dist/server/adapters/express.js",
-      "require": "./dist/server/adapters/express.cjs"
+    "./server/express-adapter": {
+      "types": "./dist/server/express-adapter/index.d.ts",
+      "import": "./dist/server/express-adapter/index.js",
+      "require": "./dist/server/express-adapter/index.cjs"
     },
     "./client": {
       "types": "./dist/client/index.d.ts",

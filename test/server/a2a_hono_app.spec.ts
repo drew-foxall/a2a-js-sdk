@@ -1,9 +1,8 @@
 import { describe, it, beforeEach, afterEach, assert, expect } from 'vitest';
 import sinon, { SinonStub } from 'sinon';
-import { Hono, Context } from 'hono';
+import { Hono } from 'hono';
 
 import { A2AHonoApp } from '../../src/server/hono/a2a_hono_app.js';
-import { jsonRpcHandler } from '../../src/server/hono/json_rpc_handler.js';
 import { A2ARequestHandler } from '../../src/server/request_handler/a2a_request_handler.js';
 import { JsonRpcTransportHandler } from '../../src/server/transports/jsonrpc/jsonrpc_transport_handler.js';
 import { AgentCard, JSONRPCSuccessResponse, JSONRPCErrorResponse } from '../../src/index.js';
@@ -571,8 +570,8 @@ describe('A2AHonoApp', () => {
   describe('authentication integration', () => {
     it('should handle no authentication middlewares', async () => {
       const authApp = new Hono();
-      const jsonRpc = jsonRpcHandler({ requestHandler: mockRequestHandler });
-      authApp.route('/', jsonRpc);
+      const a2a = new A2AHonoApp(mockRequestHandler);
+      a2a.setupRoutes(authApp);
 
       const mockResponse: JSONRPCSuccessResponse = {
         jsonrpc: '2.0',
@@ -608,16 +607,13 @@ describe('A2AHonoApp', () => {
         }
       }
 
-      const userExtractor = (_c: Context): Promise<User> => {
+      const userBuilder = (_req: Request): Promise<User> => {
         return Promise.resolve(new CustomUser() as User);
       };
 
       const authApp = new Hono();
-      const jsonRpc = jsonRpcHandler({
-        requestHandler: mockRequestHandler,
-        userBuilder: userExtractor,
-      });
-      authApp.route('/', jsonRpc);
+      const a2a = new A2AHonoApp(mockRequestHandler, { userBuilder });
+      a2a.setupRoutes(authApp);
 
       const mockResponse: JSONRPCSuccessResponse = {
         jsonrpc: '2.0',
@@ -644,7 +640,7 @@ describe('A2AHonoApp', () => {
     });
 
     it('should handle successful authentication with plain object', async () => {
-      const userExtractor = (_c: Context): Promise<User> => {
+      const userBuilder = (_req: Request): Promise<User> => {
         class CustomUser implements User {
           constructor(private userData: { id: number; email: string }) {}
           get isAuthenticated(): boolean {
@@ -662,11 +658,8 @@ describe('A2AHonoApp', () => {
       };
 
       const authApp = new Hono();
-      const jsonRpc = jsonRpcHandler({
-        requestHandler: mockRequestHandler,
-        userBuilder: userExtractor,
-      });
-      authApp.route('/', jsonRpc);
+      const a2a = new A2AHonoApp(mockRequestHandler, { userBuilder });
+      a2a.setupRoutes(authApp);
 
       const mockResponse: JSONRPCSuccessResponse = {
         jsonrpc: '2.0',
@@ -695,8 +688,8 @@ describe('A2AHonoApp', () => {
 
     it('should extract user info from request context', async () => {
       // Simulate extracting user from headers (like JWT token)
-      const userExtractor = (c: Context): Promise<User> => {
-        const authHeader = c.req.header('Authorization');
+      const userBuilder = (req: Request): Promise<User> => {
+        const authHeader = req.headers.get('Authorization');
         if (authHeader && authHeader.startsWith('Bearer ')) {
           const token = authHeader.substring(7);
           // Simulate token validation
@@ -711,11 +704,8 @@ describe('A2AHonoApp', () => {
       };
 
       const authApp = new Hono();
-      const jsonRpc = jsonRpcHandler({
-        requestHandler: mockRequestHandler,
-        userBuilder: userExtractor,
-      });
-      authApp.route('/', jsonRpc);
+      const a2a = new A2AHonoApp(mockRequestHandler, { userBuilder });
+      a2a.setupRoutes(authApp);
 
       const mockResponse: JSONRPCSuccessResponse = {
         jsonrpc: '2.0',

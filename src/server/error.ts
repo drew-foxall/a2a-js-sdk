@@ -1,4 +1,10 @@
 import * as schema from '../types.js';
+import {
+  HTTP_STATUS,
+  mapErrorToStatus,
+  toHTTPError,
+  RestHttpStatusCode,
+} from './transports/rest/rest_transport_handler.js';
 
 /**
  * Custom error class for A2A server operations, incorporating JSON-RPC error codes.
@@ -74,3 +80,113 @@ export class A2AError extends Error {
     return new A2AError(-32007, `Extended card not configured.`);
   }
 }
+
+// =============================================================================
+// Error Formatting Utilities
+// =============================================================================
+
+/**
+ * Result of formatting a JSON-RPC error.
+ */
+export interface JsonRpcErrorResult {
+  statusCode: number;
+  body: schema.JSONRPCErrorResponse;
+}
+
+/**
+ * Result of formatting a REST error.
+ */
+export interface RestErrorResult {
+  statusCode: RestHttpStatusCode;
+  body: unknown;
+}
+
+/**
+ * Formats a general JSON-RPC error response.
+ *
+ * @param error - The error that occurred
+ * @param requestId - The original request ID (or null)
+ * @returns Formatted error result with status code and body
+ */
+export function formatJsonRpcError(
+  error: unknown,
+  requestId: string | number | null
+): JsonRpcErrorResult {
+  const a2aError =
+    error instanceof A2AError ? error : A2AError.internalError('General processing error.');
+
+  return {
+    statusCode: 500,
+    body: {
+      jsonrpc: '2.0',
+      id: requestId,
+      error: a2aError.toJSONRPCError(),
+    },
+  };
+}
+
+/**
+ * Formats a JSON parse error response.
+ *
+ * @returns Formatted error result for invalid JSON
+ */
+export function formatParseError(): JsonRpcErrorResult {
+  const a2aError = A2AError.parseError('Invalid JSON payload.');
+
+  return {
+    statusCode: 400,
+    body: {
+      jsonrpc: '2.0',
+      id: null,
+      error: a2aError.toJSONRPCError(),
+    },
+  };
+}
+
+/**
+ * Formats a streaming error as a JSON-RPC error response.
+ *
+ * @param error - The error that occurred during streaming
+ * @param requestId - The original request ID (or null)
+ * @returns Formatted JSON-RPC error response
+ */
+export function formatStreamingError(
+  error: unknown,
+  requestId: string | number | null
+): schema.JSONRPCErrorResponse {
+  const a2aError =
+    error instanceof A2AError
+      ? error
+      : A2AError.internalError(
+          error instanceof Error && error.message ? error.message : 'Streaming error.'
+        );
+
+  return {
+    jsonrpc: '2.0',
+    id: requestId,
+    error: a2aError.toJSONRPCError(),
+  };
+}
+
+/**
+ * Formats a REST API error response.
+ *
+ * @param error - The error that occurred
+ * @returns Formatted error result with status code and body
+ */
+export function formatRestError(error: unknown): RestErrorResult {
+  const a2aError =
+    error instanceof A2AError
+      ? error
+      : A2AError.internalError(error instanceof Error ? error.message : 'Internal server error');
+
+  const statusCode = mapErrorToStatus(a2aError.code);
+
+  return {
+    statusCode,
+    body: toHTTPError(a2aError),
+  };
+}
+
+// Re-export HTTP_STATUS for convenience
+export { HTTP_STATUS };

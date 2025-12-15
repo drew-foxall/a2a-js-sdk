@@ -1,7 +1,7 @@
 /**
- * Pluggable Logger Interface for A2A Edge Runtime
+ * Pluggable Logger Interface for A2A Server
  *
- * Provides a minimal logging abstraction that works across all edge runtimes.
+ * Provides a minimal logging abstraction that works across all runtimes.
  * Users can implement this interface to integrate with their preferred logging solution.
  */
 
@@ -57,7 +57,7 @@ function isLogContextError(value: unknown): value is LogContextError {
 }
 
 /**
- * Logger interface for A2A edge runtime.
+ * Logger interface for A2A server.
  *
  * Implementations should be stateless and safe for concurrent use.
  * All methods are synchronous to avoid adding async overhead to hot paths.

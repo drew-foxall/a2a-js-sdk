@@ -1,20 +1,26 @@
 /**
- * Web-Standard Base Handlers for A2A Edge Runtime
+ * Web-Standard Base Handlers for A2A Server
  *
  * These handlers implement the A2A protocol using only web-standard APIs.
  * They can be used directly or wrapped by framework-specific adapters.
+ *
+ * This module uses the shared logic from:
+ * - transports/jsonrpc/json_rpc_logic.ts - JSON-RPC processing
+ * - request_handler/agent_card_utils.ts - Agent card handling
+ * - error.ts - Error formatting
+ * - sse_utils.ts - SSE event formatting
+ *
+ * ## Pluggable Streaming
+ *
+ * The handlers support pluggable streaming via the `StreamingStrategy` interface.
+ * This allows frameworks with native backpressure support (like Hono's streamSSE)
+ * to use their optimized streaming while maintaining a common handler interface.
  */
 
-import { JSONRPCErrorResponse, JSONRPCSuccessResponse } from '../../types.js';
 import { A2AError } from '../error.js';
 import { A2ARequestHandler } from '../request_handler/a2a_request_handler.js';
 import { JsonRpcTransportHandler } from '../transports/jsonrpc/jsonrpc_transport_handler.js';
-import {
-  RestTransportHandler,
-  HTTP_STATUS,
-  mapErrorToStatus,
-  toHTTPError,
-} from '../transports/rest/rest_transport_handler.js';
+import { RestTransportHandler, HTTP_STATUS } from '../transports/rest/rest_transport_handler.js';
 import type {
   MessageSendParamsInput,
   TaskPushNotificationConfigInput,
@@ -25,11 +31,10 @@ import { Extensions } from '../../extensions.js';
 import {
   WebRequest,
   WebResponse,
-  ResolvedEdgeHandlerOptions,
+  ResolvedWebHandlerOptions,
   resolveOptions,
-  EdgeHandlerOptions,
+  WebHandlerOptions,
   AgentCardProvider,
-  resolveAgentCardProvider,
   SSEEvent,
   createSSEResponse,
   jsonResponse,
@@ -37,29 +42,84 @@ import {
   parseJsonBody,
   extractPathParams,
 } from './types.js';
-import { Logger, LogContext } from './logger.js';
+import { Logger, LogContext } from '../logging/logger.js';
+
+// Import shared core logic from new locations
+import {
+  processJsonRpc,
+  extractRequestId,
+  JsonRpcInput,
+} from '../transports/jsonrpc/json_rpc_logic.js';
+import { fetchAgentCard } from '../request_handler/agent_card_utils.js';
+import {
+  formatJsonRpcError,
+  formatParseError,
+  formatStreamingError,
+  formatRestError,
+} from '../error.js';
+import { createSSEEventData, createSSEErrorEventData } from '../../sse_utils.js';
 
 // =============================================================================
-// Type Guards
+// Streaming Strategy Interface
 // =============================================================================
 
 /**
- * Type guard to check if a value is an AsyncGenerator.
+ * Strategy for creating SSE streaming responses.
+ *
+ * This interface allows frameworks to provide their own streaming implementation
+ * with native backpressure support while using the common handler logic.
+ *
+ * @example
+ * ```ts
+ * // Default web-standard strategy (no backpressure)
+ * const defaultStrategy: StreamingStrategy = {
+ *   createResponse: (generator, options) => createSSEResponse(generator, options),
+ * };
+ *
+ * // Hono strategy with native backpressure
+ * const honoStrategy: StreamingStrategy = {
+ *   createResponse: (generator, options) => {
+ *     return streamSSE(c, async (sseStream) => {
+ *       const consumer = createHonoStreamConsumer(sseStream, signal);
+ *       // ... process generator with consumer
+ *     });
+ *   },
+ * };
+ * ```
  */
-function isAsyncGenerator<T>(value: unknown): value is AsyncGenerator<T, void, undefined> {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    typeof (value as AsyncGenerator)[Symbol.asyncIterator] === 'function'
-  );
+export interface StreamingStrategy {
+  /**
+   * Creates an SSE streaming response from an async generator.
+   *
+   * @param generator - Async generator yielding SSE events
+   * @param options - Response options (headers, signal)
+   * @returns Web-standard Response with SSE stream
+   */
+  createResponse(
+    generator: AsyncGenerator<SSEEvent, void, undefined>,
+    options?: { headers?: HeadersInit; signal?: AbortSignal }
+  ): WebResponse | Promise<WebResponse>;
 }
 
 /**
- * Creates a ServerCallContext from a web request.
+ * Default streaming strategy using web-standard ReadableStream.
+ * Works everywhere but does not support backpressure.
+ */
+export const defaultStreamingStrategy: StreamingStrategy = {
+  createResponse: (generator, options) => createSSEResponse(generator, options),
+};
+
+// =============================================================================
+// Shared Utilities
+// =============================================================================
+
+/**
+ * Builds a ServerCallContext from a web request.
+ * This is specific to web-standard handlers that receive a WebRequest.
  */
 async function buildContext(
   request: WebRequest,
-  options: ResolvedEdgeHandlerOptions
+  options: ResolvedWebHandlerOptions
 ): Promise<ServerCallContext> {
   const user = await options.userBuilder(request);
   const extensionsHeader = request.headers.get(HTTP_EXTENSION_HEADER);
@@ -71,10 +131,11 @@ async function buildContext(
 
 /**
  * Adds activated extensions header to response headers.
+ * Uses Array.from() to match Express behavior.
  */
 function getExtensionsHeaders(context: ServerCallContext): HeadersInit {
   if (context.activatedExtensions && context.activatedExtensions.length > 0) {
-    return { [HTTP_EXTENSION_HEADER]: context.activatedExtensions.join(', ') };
+    return { [HTTP_EXTENSION_HEADER]: Array.from(context.activatedExtensions).join(', ') };
   }
   return {};
 }
@@ -104,7 +165,7 @@ function errorToLogContext(error: unknown): LogContext['error'] {
 /**
  * Options for the agent card handler.
  */
-export interface AgentCardHandlerOptions extends EdgeHandlerOptions {
+export interface AgentCardHandlerOptions extends WebHandlerOptions {
   /**
    * Provider for agent card data.
    * Can be an A2ARequestHandler, an object with getAgentCard(), or a function.
@@ -115,18 +176,7 @@ export interface AgentCardHandlerOptions extends EdgeHandlerOptions {
 /**
  * Creates a web-standard handler for the agent card endpoint.
  *
- * Supports multiple ways to provide the agent card:
- * - Pass an A2ARequestHandler as the first argument (original API)
- * - Pass an AgentCardProvider in options (matches Express/Hono API)
- *
- * @example
- * ```ts
- * // Using A2ARequestHandler (original API)
- * createAgentCardHandler(requestHandler);
- *
- * // Using agentCardProvider option (Express/Hono compatible)
- * createAgentCardHandler(requestHandler, { agentCardProvider: async () => myCard });
- * ```
+ * Uses shared fetchAgentCard() logic from request_handler/agent_card_utils.ts.
  */
 export function createAgentCardHandler(
   requestHandler: A2ARequestHandler,
@@ -136,9 +186,7 @@ export function createAgentCardHandler(
   const logger = resolved.logger;
 
   // Support both requestHandler and agentCardProvider
-  const getAgentCard = options?.agentCardProvider
-    ? resolveAgentCardProvider(options.agentCardProvider)
-    : requestHandler.getAgentCard.bind(requestHandler);
+  const provider = options?.agentCardProvider ?? requestHandler;
 
   return async (request: WebRequest): Promise<WebResponse> => {
     const startTime = Date.now();
@@ -147,19 +195,23 @@ export function createAgentCardHandler(
       path: new URL(request.url).pathname,
     };
 
-    try {
-      logger.debug('Agent card request received', logCtx);
-      const agentCard = await getAgentCard();
+    logger.debug('Agent card request received', logCtx);
+
+    // Use shared fetchAgentCard logic
+    const result = await fetchAgentCard(provider);
+
+    if (result.success === true) {
       logger.info('Agent card served', { ...logCtx, durationMs: Date.now() - startTime });
-      return jsonResponse(agentCard, 200);
-    } catch (error) {
-      logger.error('Failed to get agent card', {
-        ...logCtx,
-        error: errorToLogContext(error),
-        durationMs: Date.now() - startTime,
-      });
-      return jsonResponse({ error: 'Failed to retrieve agent card' }, 500);
+      return jsonResponse(result.agentCard, 200);
     }
+
+    // Error case - result.success is false, so result has 'error' property
+    logger.error('Failed to get agent card', {
+      ...logCtx,
+      error: { name: 'AgentCardError', message: result.error },
+      durationMs: Date.now() - startTime,
+    });
+    return jsonResponse({ error: result.error }, 500);
   };
 }
 
@@ -168,15 +220,33 @@ export function createAgentCardHandler(
 // =============================================================================
 
 /**
+ * Options for the JSON-RPC handler.
+ */
+export interface JsonRpcHandlerOptions extends WebHandlerOptions {
+  /**
+   * Strategy for creating streaming responses.
+   * Defaults to web-standard ReadableStream (no backpressure).
+   * Use a framework-specific strategy for native backpressure support.
+   */
+  streamingStrategy?: StreamingStrategy;
+}
+
+/**
  * Creates a web-standard handler for JSON-RPC requests.
+ *
+ * Uses shared processJsonRpc() logic from transports/jsonrpc/json_rpc_logic.ts.
+ *
+ * @param requestHandler - The A2A request handler
+ * @param options - Handler options including optional streaming strategy
  */
 export function createJsonRpcHandler(
   requestHandler: A2ARequestHandler,
-  options?: EdgeHandlerOptions
+  options?: JsonRpcHandlerOptions
 ): (request: WebRequest) => Promise<WebResponse> {
   const resolved = resolveOptions(options);
   const logger = resolved.logger;
   const jsonRpcTransportHandler = new JsonRpcTransportHandler(requestHandler);
+  const streamingStrategy = options?.streamingStrategy ?? defaultStreamingStrategy;
 
   return async (request: WebRequest): Promise<WebResponse> => {
     const startTime = Date.now();
@@ -191,78 +261,69 @@ export function createJsonRpcHandler(
       const body = await parseJsonBody(request);
       if (body === null) {
         logger.warn('Invalid JSON payload', logCtx);
-        const a2aError = A2AError.parseError('Invalid JSON payload.');
-        const errorResponse: JSONRPCErrorResponse = {
-          jsonrpc: '2.0',
-          id: null,
-          error: a2aError.toJSONRPCError(),
-        };
-        return jsonResponse(errorResponse, 400);
+        const errorResult = formatParseError();
+        return jsonResponse(errorResult.body, errorResult.statusCode);
       }
 
-      requestId = (body as { id?: string | number | null })?.id ?? null;
+      // Extract request ID using shared logic
+      requestId = extractRequestId(body);
       logCtx.requestId = requestId?.toString();
 
       // Build context with user and extensions
-      const context = await buildContext(request, resolved);
+      const user = await resolved.userBuilder(request);
+      const extensionsHeader = request.headers.get(HTTP_EXTENSION_HEADER);
+
+      // Prepare input for shared processJsonRpc
+      const input: JsonRpcInput = {
+        body,
+        extensionsHeader,
+        user,
+      };
 
       logger.debug('Processing JSON-RPC request', logCtx);
 
-      // Handle the request
-      const rpcResponseOrStream = await jsonRpcTransportHandler.handle(body, context);
-      const extensionsHeaders = getExtensionsHeaders(context);
+      // Use shared processJsonRpc logic
+      const result = await processJsonRpc(input, jsonRpcTransportHandler);
+      const extensionsHeaders: HeadersInit =
+        result.extensionsToActivate.length > 0
+          ? { [HTTP_EXTENSION_HEADER]: result.extensionsToActivate.join(', ') }
+          : {};
 
-      // Check if streaming response
-      if (isAsyncGenerator<JSONRPCSuccessResponse>(rpcResponseOrStream)) {
+      // Handle streaming response
+      if (result.type === 'stream') {
         logger.debug('Starting SSE stream', logCtx);
-        const stream = rpcResponseOrStream;
+        const stream = result.stream; // TypeScript knows this exists because type === 'stream'
 
-        // Convert to SSE events
+        // Convert to SSE events using shared formatters
         async function* sseGenerator(): AsyncGenerator<SSEEvent, void, undefined> {
           try {
             for await (const event of stream) {
-              yield {
-                id: String(Date.now()),
-                data: JSON.stringify(event),
-              };
+              yield createSSEEventData(event);
             }
           } catch (streamError) {
             logger.error('SSE streaming error', {
               ...logCtx,
               error: errorToLogContext(streamError),
             });
-            const a2aError =
-              streamError instanceof A2AError
-                ? streamError
-                : A2AError.internalError(
-                    streamError instanceof Error ? streamError.message : 'Streaming error.'
-                  );
-            const errorResponse: JSONRPCErrorResponse = {
-              jsonrpc: '2.0',
-              id: requestId,
-              error: a2aError.toJSONRPCError(),
-            };
-            yield {
-              id: String(Date.now()),
-              event: 'error',
-              data: JSON.stringify(errorResponse),
-            };
+            // Use shared formatStreamingError
+            const errorResponse = formatStreamingError(streamError, requestId);
+            yield createSSEErrorEventData(errorResponse);
           }
         }
 
-        return createSSEResponse(sseGenerator(), {
+        // Use pluggable streaming strategy
+        return streamingStrategy.createResponse(sseGenerator(), {
           headers: extensionsHeaders,
           signal: request.signal,
         });
       }
 
-      // Single response - at this point we know it's not an AsyncGenerator
-      const rpcResponse = rpcResponseOrStream;
+      // Single response
       logger.info('JSON-RPC request completed', {
         ...logCtx,
         durationMs: Date.now() - startTime,
       });
-      return jsonResponse(rpcResponse, 200, extensionsHeaders);
+      return jsonResponse(result.response, 200, extensionsHeaders);
     } catch (error) {
       logger.error('JSON-RPC handler error', {
         ...logCtx,
@@ -270,14 +331,9 @@ export function createJsonRpcHandler(
         durationMs: Date.now() - startTime,
       });
 
-      const a2aError =
-        error instanceof A2AError ? error : A2AError.internalError('General processing error.');
-      const errorResponse: JSONRPCErrorResponse = {
-        jsonrpc: '2.0',
-        id: requestId,
-        error: a2aError.toJSONRPCError(),
-      };
-      return jsonResponse(errorResponse, 500);
+      // Use shared formatJsonRpcError
+      const errorResult = formatJsonRpcError(error, requestId);
+      return jsonResponse(errorResult.body, errorResult.statusCode);
     }
   };
 }
@@ -301,12 +357,28 @@ interface RestRoute {
 }
 
 /**
+ * Options for the REST handlers.
+ */
+export interface RestHandlerOptions extends WebHandlerOptions {
+  /**
+   * Strategy for creating streaming responses.
+   * Defaults to web-standard ReadableStream (no backpressure).
+   * Use a framework-specific strategy for native backpressure support.
+   */
+  streamingStrategy?: StreamingStrategy;
+}
+
+/**
  * Creates web-standard handlers for REST API endpoints.
- * Returns an object with handlers for each endpoint.
+ *
+ * Uses shared error formatting from error.ts.
+ *
+ * @param requestHandler - The A2A request handler
+ * @param options - Handler options including optional streaming strategy
  */
 export function createRestHandlers(
   requestHandler: A2ARequestHandler,
-  options?: EdgeHandlerOptions
+  options?: RestHandlerOptions
 ): {
   routes: RestRoute[];
   handleRequest: (request: WebRequest, pathname: string) => Promise<WebResponse | null>;
@@ -314,6 +386,7 @@ export function createRestHandlers(
   const resolved = resolveOptions(options);
   const logger = resolved.logger;
   const restTransportHandler = new RestTransportHandler(requestHandler);
+  const streamingStrategy = options?.streamingStrategy ?? defaultStreamingStrategy;
 
   // Helper to create response with extensions header
   const respond = (statusCode: number, context: ServerCallContext, body?: unknown): WebResponse => {
@@ -324,17 +397,13 @@ export function createRestHandlers(
     return jsonResponse(body, statusCode, headers);
   };
 
-  // Helper to handle errors
+  // Helper to handle errors using shared formatRestError
   const handleError = (error: unknown, context: ServerCallContext): WebResponse => {
-    const a2aError =
-      error instanceof A2AError
-        ? error
-        : A2AError.internalError(error instanceof Error ? error.message : 'Internal server error');
-    const statusCode = mapErrorToStatus(a2aError.code);
-    return jsonResponse(toHTTPError(a2aError), statusCode, getExtensionsHeaders(context));
+    const errorResult = formatRestError(error);
+    return jsonResponse(errorResult.body, errorResult.statusCode, getExtensionsHeaders(context));
   };
 
-  // Helper for streaming responses
+  // Helper for streaming responses using shared SSE formatters and pluggable strategy
   const streamResponse = async (
     stream: AsyncGenerator<unknown, void, undefined>,
     context: ServerCallContext,
@@ -350,43 +419,33 @@ export function createRestHandlers(
         ...logCtx,
         error: errorToLogContext(error),
       });
-      const a2aError =
-        error instanceof A2AError
-          ? error
-          : A2AError.internalError(error instanceof Error ? error.message : 'Streaming error');
-      const statusCode = mapErrorToStatus(a2aError.code);
-      return respond(statusCode, context, toHTTPError(a2aError));
+      const errorResult = formatRestError(error);
+      return respond(errorResult.statusCode, context, errorResult.body);
     }
 
-    // Stream events
+    // Stream events using shared SSE formatters
     async function* sseGenerator(): AsyncGenerator<SSEEvent, void, undefined> {
       try {
         if (!firstResult.done) {
-          yield { id: String(Date.now()), data: JSON.stringify(firstResult.value) };
+          yield createSSEEventData(firstResult.value);
         }
         for await (const event of { [Symbol.asyncIterator]: () => iterator }) {
-          yield { id: String(Date.now()), data: JSON.stringify(event) };
+          yield createSSEEventData(event);
         }
       } catch (streamError) {
         logger.error('SSE streaming error', {
           ...logCtx,
           error: errorToLogContext(streamError),
         });
-        const a2aError =
-          streamError instanceof A2AError
-            ? streamError
-            : A2AError.internalError(
-                streamError instanceof Error ? streamError.message : 'Streaming error'
-              );
-        yield {
-          id: String(Date.now()),
-          event: 'error',
-          data: JSON.stringify(toHTTPError(a2aError)),
-        };
+        const errorResult = formatRestError(streamError);
+        yield createSSEErrorEventData(errorResult.body);
       }
     }
 
-    return createSSEResponse(sseGenerator(), { headers: getExtensionsHeaders(context) });
+    // Use pluggable streaming strategy
+    return streamingStrategy.createResponse(sseGenerator(), {
+      headers: getExtensionsHeaders(context),
+    });
   };
 
   // Define routes
@@ -461,10 +520,6 @@ export function createRestHandlers(
       handler: async (req, params, context) => {
         const body = await parseJsonBody<TaskPushNotificationConfigInput>(req);
         if (!body) throw A2AError.parseError('Invalid JSON payload');
-        // Ensure taskId from URL params is set on the config.
-        // The transport handler's normalizer accepts both camelCase and snake_case,
-        // so we set both to ensure compatibility regardless of which format the client used.
-        // We use Object.assign to add properties without changing the type.
         Object.assign(body, {
           taskId: params.taskId,
           task_id: params.taskId,
@@ -567,18 +622,27 @@ export function createRestHandlers(
 /**
  * Configuration for the combined A2A handler.
  */
-export interface A2AHandlerConfig extends EdgeHandlerOptions {
+export interface A2AHandlerConfig extends WebHandlerOptions {
   /** Path for agent card endpoint (default: '/.well-known/agent-card.json') */
   agentCardPath?: string;
   /** Path for JSON-RPC endpoint (default: '/') */
   jsonRpcPath?: string;
   /** Path prefix for REST endpoints (default: '') */
   restBasePath?: string;
+  /**
+   * Strategy for creating streaming responses.
+   * Defaults to web-standard ReadableStream (no backpressure).
+   * Use a framework-specific strategy for native backpressure support.
+   */
+  streamingStrategy?: StreamingStrategy;
 }
 
 /**
  * Creates a combined handler that routes to agent card, JSON-RPC, or REST handlers.
  * This is the main entry point for framework adapters.
+ *
+ * @param requestHandler - The A2A request handler
+ * @param config - Handler configuration including optional streaming strategy
  */
 export function createA2AHandler(
   requestHandler: A2ARequestHandler,
@@ -589,8 +653,14 @@ export function createA2AHandler(
   const restBasePath = config?.restBasePath ?? '';
 
   const agentCardHandler = createAgentCardHandler(requestHandler, config);
-  const jsonRpcHandler = createJsonRpcHandler(requestHandler, config);
-  const { handleRequest: handleRestRequest } = createRestHandlers(requestHandler, config);
+  const jsonRpcHandler = createJsonRpcHandler(requestHandler, {
+    ...config,
+    streamingStrategy: config?.streamingStrategy,
+  });
+  const { handleRequest: handleRestRequest } = createRestHandlers(requestHandler, {
+    ...config,
+    streamingStrategy: config?.streamingStrategy,
+  });
 
   return async (request: WebRequest): Promise<WebResponse> => {
     const url = new URL(request.url);
@@ -618,3 +688,7 @@ export function createA2AHandler(
     return jsonResponse({ error: 'Not Found' }, 404);
   };
 }
+
+// Re-export shared utilities for convenience
+export { isAsyncGenerator, extractRequestId } from '../transports/jsonrpc/json_rpc_logic.js';
+export { resolveAgentCardProvider } from '../request_handler/agent_card_utils.js';
