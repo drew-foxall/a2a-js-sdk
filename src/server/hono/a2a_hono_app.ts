@@ -186,7 +186,8 @@ export class A2AHonoApp {
     });
 
     // Agent card endpoint (GET /.well-known/agent-card.json)
-    a2aApp.get(`/${cardPath}`, async (c: Context) => agentCardHandler(c.req.raw));
+    // cardPath already includes leading slash from AGENT_CARD_ROUTE.pattern
+    a2aApp.get(cardPath, async (c: Context) => agentCardHandler(c.req.raw));
 
     // REST API endpoints (optional) with native Hono streaming
     if (this.options.enableRest) {

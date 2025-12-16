@@ -110,9 +110,10 @@ export class A2AElysiaApp {
 
     const routes: ElysiaRoute[] = [
       // Agent card (GET /.well-known/agent-card.json)
+      // agentCardPath already includes leading slash from AGENT_CARD_ROUTE.pattern
       {
         method: 'get',
-        path: `${basePath}/${this.options.agentCardPath}`,
+        path: `${basePath}${this.options.agentCardPath}`,
         handler: async (ctx) => agentCardHandler(ctx.request),
       },
       // JSON-RPC (POST /)

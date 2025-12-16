@@ -1,6 +1,6 @@
 {
   "name": "@drew-foxall/a2a-js-sdk",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "description": "Server & Client SDK for Agent2Agent protocol with Express, Hono, and Edge Runtime support",
   "license": "Apache-2.0",
   "repository": {

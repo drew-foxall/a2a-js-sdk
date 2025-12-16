@@ -105,9 +105,10 @@ export class A2AIttyRouterApp {
 
     const routes: IttyRoute[] = [
       // Agent card (GET /.well-known/agent-card.json)
+      // agentCardPath already includes leading slash from AGENT_CARD_ROUTE.pattern
       {
         method: AGENT_CARD_ROUTE.method,
-        pattern: `${basePath}/${this.options.agentCardPath}`,
+        pattern: `${basePath}${this.options.agentCardPath}`,
         handler: (request) => agentCardHandler(request),
       },
       // JSON-RPC (POST /)
@@ -211,8 +212,8 @@ export class A2AIttyRouterApp {
         ? pathname.slice(basePath.length) || '/'
         : pathname;
 
-      // Agent card
-      if (method === AGENT_CARD_ROUTE.method && relativePath === `/${this.options.agentCardPath}`) {
+      // Agent card - agentCardPath already includes leading slash
+      if (method === AGENT_CARD_ROUTE.method && relativePath === this.options.agentCardPath) {
         return agentCardHandler(request);
       }
 
